@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
 [![Python versions](https://img.shields.io/pypi/pyversions/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
 [![Test](https://github.com/NatLee/blur-generator/actions/workflows/test.yml/badge.svg)](https://github.com/NatLee/blur-generator/actions/workflows/test.yml)
-[![License](https://img.shields.io/pypi/l/BlurGenerator.svg)](https://github.com/NatLee/blur-generator/blob/main/LICENSE)
+[![License](https://img.shields.io/pypi/l/BlurGenerator.svg)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/BlurGenerator.svg)](https://pypistats.org/packages/blurgenerator)
 
 Blur Generator adds **motion**, **lens** (bokeh) or **Gaussian** blur to images, from Python or from the
@@ -14,9 +14,9 @@ Use it to make training data for blur detection or deblurring models (see
 
 | Original | Motion |
 |:---:|:---:|
-| ![original photo](https://github.com/NatLee/blur-generator/raw/main/doc/readme/sample.jpg) | ![motion blur](https://github.com/NatLee/blur-generator/raw/main/doc/readme/gallery-motion.jpg) |
+| ![original photo](doc/readme/sample.jpg) | ![motion blur](doc/readme/gallery-motion.jpg) |
 | **Lens** | **Gaussian** |
-| ![lens blur](https://github.com/NatLee/blur-generator/raw/main/doc/readme/gallery-lens.jpg) | ![gaussian blur](https://github.com/NatLee/blur-generator/raw/main/doc/readme/gallery-gaussian.jpg) |
+| ![lens blur](doc/readme/gallery-lens.jpg) | ![gaussian blur](doc/readme/gallery-gaussian.jpg) |
 
 ## Installation
 
@@ -36,7 +36,7 @@ apt-get install -y libgl1 libglib2.0-0
 
 ## Quick start
 
-The examples use the sample images in [`doc/`](https://github.com/NatLee/blur-generator/tree/main/doc).
+The examples use the sample images in [`doc/`](doc/).
 Run them from the root of a clone of this repository, or point them at your own images.
 
 From the command line:
@@ -98,14 +98,14 @@ values into layers (`num_layers`) and blurs each layer by its own amount, from `
 
 | Photo | Depth map (brighter is nearer) |
 |:---:|:---:|
-| ![photo of a cave](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-photo.jpg) | ![depth map](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-map.jpg) |
+| ![photo of a cave](doc/readme/depth-photo.jpg) | ![depth map](doc/readme/depth-map.jpg) |
 
 In this depth map nearer things are brighter, so the blur grows towards the camera: the rocks in front get
 blurry and the far end of the cave stays sharp.
 
 | Motion | Lens | Gaussian |
 |:---:|:---:|:---:|
-| ![motion blur with depth map](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-motion.jpg) | ![lens blur with depth map](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-lens.jpg) | ![gaussian blur with depth map](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-gaussian.jpg) |
+| ![motion blur with depth map](doc/readme/depth-motion.jpg) | ![lens blur with depth map](doc/readme/depth-lens.jpg) | ![gaussian blur with depth map](doc/readme/depth-gaussian.jpg) |
 
 ```bash
 blurgenerator --type motion --input ./doc/depth-test.jpg --input_depth_map ./doc/depth-map-test.png --depth_max_blur 50 --output depth-motion.png
@@ -136,7 +136,7 @@ This answers [issue #5](https://github.com/NatLee/blur-generator/issues/5).
 
 | Default: blur grows with depth | `focus_point=(480, 1150), focus_range=20` |
 |:---:|:---:|
-| ![lens blur without focus: the rocks in front are blurred](https://github.com/NatLee/blur-generator/raw/main/doc/readme/depth-lens.jpg) | ![lens blur focused on the rocks: the rocks are sharp, the cave behind them and the floor in front are blurred](https://github.com/NatLee/blur-generator/raw/main/doc/readme/focus-rocks.jpg) |
+| ![lens blur without focus: the rocks in front are blurred](doc/readme/depth-lens.jpg) | ![lens blur focused on the rocks: the rocks are sharp, the cave behind them and the floor in front are blurred](doc/readme/focus-rocks.jpg) |
 
 On the right the pile of rocks (depth 179 at pixel 480, 1150) is sharp. The cave behind it and the floor
 and ceiling in front of it are blurred, more the further their depth is from 179.
@@ -162,9 +162,9 @@ the right:
 
 | | Depth 0 on the left, 255 on the right |
 |---|:---:|
-| Depth map | ![depth gradient](https://github.com/NatLee/blur-generator/raw/main/doc/readme/strip-depth.png) |
-| Default | ![blur grows from left to right](https://github.com/NatLee/blur-generator/raw/main/doc/readme/strip-default.png) |
-| `focus=128, focus_range=40` | ![sharp in the middle, blurred towards both ends](https://github.com/NatLee/blur-generator/raw/main/doc/readme/strip-focus.png) |
+| Depth map | ![depth gradient](doc/readme/strip-depth.png) |
+| Default | ![blur grows from left to right](doc/readme/strip-default.png) |
+| `focus=128, focus_range=40` | ![sharp in the middle, blurred towards both ends](doc/readme/strip-focus.png) |
 
 The rules with a focus:
 
@@ -347,4 +347,4 @@ The pictures in this README are real output of the tool. To make them again afte
 
 ## License
 
-[MIT](https://github.com/NatLee/blur-generator/blob/main/LICENSE)
+[MIT](LICENSE)
