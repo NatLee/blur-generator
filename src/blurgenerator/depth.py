@@ -26,6 +26,10 @@ from .motion_blur import motion_blur
 #: A blur function: takes the image and a blur amount, returns the blurred image.
 BlurFunction = Callable[[np.ndarray, int], np.ndarray]
 
+#: Depth maps are 8-bit images, so depths run from 0 to DEPTH_MAX (255).
+DEPTH_DTYPE = np.uint8
+DEPTH_MAX = int(np.iinfo(DEPTH_DTYPE).max)
+
 
 def map_range(value, inMin, inMax, outMin, outMax):
     """Map ``value`` linearly from the range ``[inMin, inMax]`` to ``[outMin, outMax]``."""
@@ -63,7 +67,7 @@ def get_blur_amount_and_l_mask(depth_map: np.ndarray, value: int, step: int, min
         l_mask[:, :, 0] = mask
         l_mask[:, :, 1] = mask
         l_mask[:, :, 2] = mask
-    return _blur_amount(value, min_blur, max_blur), l_mask
+    return _blur_amount(value, DEPTH_MAX, min_blur, max_blur), l_mask
 
 
 def blur_with_depth(depth_map: np.ndarray, num_layers: int = 10, min_blur: int = 1,
@@ -153,9 +157,9 @@ def _check_inputs(img: np.ndarray, depth_map: np.ndarray, num_layers: int) -> No
                 f'{name} must be an image (a numpy array, for example from cv2.imread), '
                 f'got {type(value).__name__}. cv2.imread returns None when it cannot read the file.'
             )
-    if depth_map.dtype != np.uint8:
+    if depth_map.dtype != DEPTH_DTYPE:
         raise ValueError(
-            f'depth_map must be an 8-bit image (dtype uint8, values 0-255), got dtype {depth_map.dtype}.'
+            f'depth_map must be an 8-bit image (dtype uint8, values 0-{DEPTH_MAX}), got dtype {depth_map.dtype}.'
         )
     if depth_map.ndim not in (2, 3) or (depth_map.ndim == 3 and depth_map.shape[2] not in (1, 3, 4)):
         raise ValueError(f'depth_map must be a grayscale or BGR image, got an array of shape {depth_map.shape}.')
@@ -189,22 +193,31 @@ def _resolve_focus(gray: np.ndarray, focus: Optional[float], focus_range: float,
         if focus_range:
             raise ValueError('focus_range needs a focus depth or a focus point.')
         return None
-    if not 0 <= focus <= 255:
-        raise ValueError(f'The focus depth must be between 0 and 255, got {focus}.')
+    if not 0 <= focus <= DEPTH_MAX:
+        raise ValueError(f'The focus depth must be between 0 and {DEPTH_MAX}, got {focus}.')
     if focus_range < 0:
         raise ValueError(f'focus_range must be 0 or more, got {focus_range}.')
     return focus
 
 
-def _blur_amount(value: int, min_blur: int, max_blur: int) -> int:
-    """Blur amount for a depth: ``min_blur`` at depth 0, ``max_blur`` at depth 255."""
-    return int(map_range(value, 0, 255, min_blur, max_blur))
+def _blur_amount(value: float, farthest: float, min_blur: int, max_blur: int) -> int:
+    """Blur amount for ``value`` on a scale from 0 (``min_blur``) to ``farthest`` (``max_blur``).
+
+    Without a focus the value is the depth and ``farthest`` is DEPTH_MAX; with a focus it is the
+    distance from the sharp band and ``farthest`` the largest possible distance.
+    """
+    return int(map_range(value, 0, farthest, min_blur, max_blur))
+
+
+def _mask(selected: np.ndarray) -> np.ndarray:
+    """8-bit mask for OpenCV: 255 where ``selected`` is true, 0 elsewhere."""
+    return np.where(selected, 255, 0).astype(np.uint8)
 
 
 def _layer_mask(values: np.ndarray, low: int, step: int, include_low: bool) -> np.ndarray:
-    """Mask (0 or 255) of the pixels whose value lies in ``(low, low + step]``, or ``[low, low + step]``."""
+    """Mask of the pixels whose value lies in ``(low, low + step]``, or ``[low, low + step]``."""
     above = values >= low if include_low else values > low
-    return np.where(above & (values <= low + step), 255, 0).astype(np.uint8)
+    return _mask(above & (values <= low + step))
 
 
 def _depth_layers(depth_map: np.ndarray, gray: np.ndarray, num_layers: int, min_blur: int,
@@ -212,7 +225,7 @@ def _depth_layers(depth_map: np.ndarray, gray: np.ndarray, num_layers: int, min_
     """Yield ``(blur amount, mask)`` for every depth layer: the blur grows with the depth value."""
     step, layers = get_depth_step_and_layer(depth_map, num_layers)
     for i, value in enumerate(layers):
-        yield _blur_amount(value, min_blur, max_blur), _layer_mask(gray, value, step, include_low=(i == 0))
+        yield _blur_amount(value, DEPTH_MAX, min_blur, max_blur), _layer_mask(gray, value, step, include_low=(i == 0))
 
 
 def _focus_layers(gray: np.ndarray, focus: float, focus_range: float, num_layers: int, min_blur: int,
@@ -226,17 +239,17 @@ def _focus_layers(gray: np.ndarray, focus: float, focus_range: float, num_layers
     # Distance from the sharp band in depth steps (0 inside the band).
     distance = np.ceil(np.maximum(np.abs(gray.astype(np.float64) - focus) - half_range, 0)).astype(np.int32)
     # max_blur is reached at whichever end of the 0-255 scale is farther from the band.
-    farthest = math.ceil(max(focus - half_range, 255 - focus - half_range, 0))
+    farthest = math.ceil(max(focus - half_range, DEPTH_MAX - focus - half_range, 0))
 
-    yield 0, np.where(distance == 0, 255, 0).astype(np.uint8)
+    yield 0, _mask(distance == 0)
 
     outside = distance[distance > 0]
     if outside.size == 0:
         return
     step, layers = get_depth_step_and_layer(outside, num_layers)
     for i, value in enumerate(layers):
-        blur_amount = int(map_range(value, 0, farthest, min_blur, max_blur))
-        yield blur_amount, _layer_mask(distance, value, step, include_low=(i == 0))
+        mask = _layer_mask(distance, value, step, include_low=(i == 0))
+        yield _blur_amount(value, farthest, min_blur, max_blur), mask
 
 
 def _blur_by_depth(img: np.ndarray, depth_map: np.ndarray, blur: BlurFunction, num_layers: int, min_blur: int,
@@ -257,6 +270,6 @@ def _blur_by_depth(img: np.ndarray, depth_map: np.ndarray, blur: BlurFunction, n
         # gaussian_blur of size 0 was already a plain copy.
         blurred = img if blur_amount == 0 else blur(img, blur_amount)
         layer = cv2.bitwise_and(blurred, blurred, mask=mask)
-        # dtype=0 (CV_8U): the result is an 8-bit image, as it has always been.
-        out = cv2.add(out, layer, dtype=0)
+        # The result is an 8-bit image, as it has always been.
+        out = cv2.add(out, layer, dtype=cv2.CV_8U)
     return out
