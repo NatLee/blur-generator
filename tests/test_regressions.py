@@ -12,6 +12,7 @@ import numpy as np
 
 from blurgenerator import (
     lens_blur,
+    gaussian_blur,
     motion_blur_with_depth_map,
     lens_blur_with_depth_map,
     gaussian_blur_with_depth_map,
@@ -47,6 +48,46 @@ class TestLensBlurComponents(unittest.TestCase):
         for components in (7, 10):
             result = lens_blur(img, radius=3, components=components)
             self.assertTrue(np.array_equal(result, expected))
+
+
+DEPTH_FUNCTIONS = (motion_blur_with_depth_map, lens_blur_with_depth_map, gaussian_blur_with_depth_map)
+
+
+def count_black_pixels(img):
+    return int((img.reshape(-1, img.shape[-1]).sum(axis=1) == 0).sum())
+
+
+class TestDepthMap(unittest.TestCase):
+
+    def setUp(self):
+        # Plain gray image: any black pixel in the output is a pixel the depth blur dropped.
+        self.img = np.full((40, 40, 3), 120, dtype=np.uint8)
+
+    def test_pixels_at_the_lowest_depth_are_not_black(self):
+        # 1.1.0 left every pixel whose depth equals the minimum of the map black.
+        depth = np.zeros((40, 40, 3), dtype=np.uint8)
+        depth[:, 20:] = 200
+        for fn in DEPTH_FUNCTIONS:
+            with self.subTest(fn=fn.__name__):
+                out = fn(self.img, depth, num_layers=3, min_blur=1, max_blur=9)
+                self.assertEqual(count_black_pixels(out), 0)
+
+    def test_depth_range_narrower_than_num_layers(self):
+        # 1.1.0 raised "range() arg 3 must not be zero" when max - min < num_layers.
+        depth = np.full((40, 40, 3), 100, dtype=np.uint8)
+        depth[:, 20:] = 105
+        for fn in DEPTH_FUNCTIONS:
+            with self.subTest(fn=fn.__name__):
+                out = fn(self.img, depth, num_layers=10, min_blur=1, max_blur=9)
+                self.assertEqual(count_black_pixels(out), 0)
+
+    def test_flat_depth_map_blurs_the_whole_image_once(self):
+        # A depth map with a single value is one layer: the same as blurring the whole image
+        # with the blur amount for that depth (128 -> 5 for min_blur=1, max_blur=9).
+        img = random_image()
+        depth = np.full((40, 40, 3), 128, dtype=np.uint8)
+        out = gaussian_blur_with_depth_map(img, depth, sigma=5, num_layers=3, min_blur=1, max_blur=9)
+        self.assertTrue(np.array_equal(out, gaussian_blur(img, 5, sigma=5)))
 
 
 class TestCliDepthMap(unittest.TestCase):

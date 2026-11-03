@@ -7,16 +7,24 @@ def map_range(value, inMin, inMax, outMin, outMax):
     return outMin + (((value - inMin) / (inMax - inMin)) * (outMax - outMin))
 
 def get_depth_step_and_layer(depth_map, num_layers):
-    min_depth = np.min(np.unique(depth_map))
-    max_depth = np.max(np.unique(depth_map))
-    step = (max_depth - min_depth) // num_layers
-    layers = np.array(range(min_depth, max_depth, step))
+    min_depth = int(np.min(depth_map))
+    max_depth = int(np.max(depth_map))
+    # At least 1: a depth range narrower than num_layers (or a flat depth map) gave a step of 0,
+    # and range() raised "arg 3 must not be zero".
+    step = max((max_depth - min_depth) // num_layers, 1)
+    # A flat depth map (min == max) still gets one layer.
+    layers = np.array(range(min_depth, max(max_depth, min_depth + 1), step))
     return step, layers
 
-def get_blur_amount_and_l_mask(depth_map, value, step, min_blur, max_blur):
+def get_blur_amount_and_l_mask(depth_map, value, step, min_blur, max_blur, include_value=False):
+    # A layer covers depths in (value, value + step]. The lowest layer passes include_value=True so it
+    # also covers depth == value; otherwise pixels at the minimum depth belong to no layer and stay black.
     dm = cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
     m = np.zeros(dm.shape)
-    m[dm > value] = 255
+    if include_value:
+        m[dm >= value] = 255
+    else:
+        m[dm > value] = 255
     m[dm > (value + step)] = 0
     l_mask = depth_map.copy()
     l_mask[:,:,0] = m[:,:]
@@ -28,13 +36,14 @@ def get_blur_amount_and_l_mask(depth_map, value, step, min_blur, max_blur):
 def blur_with_depth(depth_map, num_layers=10, min_blur=1, max_blur=100):
     step, layers = get_depth_step_and_layer(depth_map, num_layers)
     blur_masks = []
-    for value in layers:
+    for i, value in enumerate(layers):
         blur_amount, l_mask = get_blur_amount_and_l_mask(
             depth_map,
             value,
             step,
             min_blur,
-            max_blur
+            max_blur,
+            include_value=(i == 0)
         )
         blur_masks.append((blur_amount, l_mask))
     return blur_masks
