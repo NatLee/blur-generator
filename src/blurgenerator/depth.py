@@ -3,10 +3,18 @@ Blur an image by depth: a depth map decides how much each pixel is blurred.
 
 The depth map is an 8-bit image the same size as the photo, either grayscale or BGR (converted to
 grayscale). Its range of values is split into ``num_layers`` layers. Every layer is blurred with its own
-strength, from ``min_blur`` for depth 0 to ``max_blur`` for depth 255, and the layers are put back together.
-A blur amount of 0 leaves the pixels sharp.
+strength and the layers are put back together. A blur amount of 0 leaves the pixels sharp.
+
+There are two ways to pick the strength of a layer:
+
+- By default the blur grows with the depth value: ``min_blur`` at depth 0, ``max_blur`` at depth 255.
+- With a focus (``focus=<depth>`` or ``focus_point=(x, y)``) the blur grows with the distance from the
+  focus depth, in both directions, like the depth of field of a camera. Depths within ``focus_range / 2``
+  of the focus are not blurred at all; just outside that band the blur is about ``min_blur``, and it
+  reaches ``max_blur`` at whichever end of the 0-255 scale is farther from the band.
 """
-from typing import Callable, Iterator, List, Tuple
+import math
+from typing import Callable, Iterator, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -69,40 +77,62 @@ def blur_with_depth(depth_map: np.ndarray, num_layers: int = 10, min_blur: int =
 
 
 def motion_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, angle: float = 30, num_layers: int = 10,
-                               min_blur: int = 1, max_blur: int = 100) -> np.ndarray:
-    """Motion blur whose length follows the depth map (``min_blur`` to ``max_blur`` pixels).
+                               min_blur: int = 1, max_blur: int = 100, *, focus: Optional[float] = None,
+                               focus_range: float = 0,
+                               focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
+    """Motion blur whose length (in pixels) follows the depth map.
 
-    See :func:`blurgenerator.motion_blur` for ``angle`` and the module docstring for the depth options.
+    Args:
+        img: Image to blur, for example from ``cv2.imread``.
+        depth_map: 8-bit depth map, grayscale or BGR, the same size as ``img``.
+        angle: Direction of the motion in degrees, see :func:`blurgenerator.motion_blur`.
+        num_layers: Number of depth layers; more layers give smoother transitions and take longer.
+        min_blur: Blur for depth 0, or right next to the focus when a focus is set.
+        max_blur: Blur for depth 255, or farthest from the focus when a focus is set.
+        focus: Depth (0-255) to keep sharp. The blur then grows with the distance from this depth,
+            towards both 0 and 255. Off by default.
+        focus_range: Width of the band of depths around the focus that stays sharp: 10 keeps
+            ``focus - 5`` to ``focus + 5`` sharp. Needs ``focus`` or ``focus_point``. Default 0.
+        focus_point: ``(x, y)`` pixel of the depth map whose depth becomes the focus. Use it instead of
+            ``focus``.
+
+    Returns:
+        The blurred image as ``uint8``.
     """
     def blur(image: np.ndarray, amount: int) -> np.ndarray:
         return motion_blur(image, size=amount, angle=angle)
 
-    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur)
+    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur, focus, focus_range, focus_point)
 
 
 def lens_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, components: int = 5,
                              exposure_gamma: float = 5, num_layers: int = 10, min_blur: int = 1,
-                             max_blur: int = 100) -> np.ndarray:
-    """Lens blur whose radius follows the depth map (``min_blur`` to ``max_blur`` pixels).
+                             max_blur: int = 100, *, focus: Optional[float] = None, focus_range: float = 0,
+                             focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
+    """Lens blur whose radius (in pixels) follows the depth map.
 
-    See :func:`blurgenerator.lens_blur` for ``components`` and ``exposure_gamma``.
+    ``components`` and ``exposure_gamma`` work as in :func:`blurgenerator.lens_blur`; the other arguments
+    are described in :func:`motion_blur_with_depth_map`.
     """
     def blur(image: np.ndarray, amount: int) -> np.ndarray:
         return lens_blur(image, radius=amount, components=components, exposure_gamma=exposure_gamma)
 
-    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur)
+    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur, focus, focus_range, focus_point)
 
 
 def gaussian_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, sigma: float = 5, num_layers: int = 10,
-                                 min_blur: int = 1, max_blur: int = 100) -> np.ndarray:
-    """Gaussian blur whose kernel size follows the depth map (``min_blur`` to ``max_blur`` pixels).
+                                 min_blur: int = 1, max_blur: int = 100, *, focus: Optional[float] = None,
+                                 focus_range: float = 0,
+                                 focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
+    """Gaussian blur whose kernel size (in pixels) follows the depth map.
 
-    See :func:`blurgenerator.gaussian_blur` for ``sigma``.
+    ``sigma`` works as in :func:`blurgenerator.gaussian_blur`; the other arguments are described in
+    :func:`motion_blur_with_depth_map`.
     """
     def blur(image: np.ndarray, amount: int) -> np.ndarray:
         return gaussian_blur(image, amount, sigma=sigma)
 
-    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur)
+    return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur, focus, focus_range, focus_point)
 
 
 # ----------------------------------------------------------------------------------------------------------
@@ -139,6 +169,33 @@ def _check_inputs(img: np.ndarray, depth_map: np.ndarray, num_layers: int) -> No
         raise ValueError(f'num_layers must be at least 1, got {num_layers}.')
 
 
+def _resolve_focus(gray: np.ndarray, focus: Optional[float], focus_range: float,
+                   focus_point: Optional[Sequence[int]]) -> Optional[float]:
+    """Check the focus options and return the focus depth, or ``None`` when no focus is set."""
+    if focus is not None and focus_point is not None:
+        raise ValueError('Give either a focus depth or a focus point, not both.')
+    if focus_point is not None:
+        try:
+            x, y = (int(value) for value in focus_point)
+        except (TypeError, ValueError):
+            raise ValueError(f'The focus point must be two whole numbers (x, y), got {focus_point!r}.') from None
+        height, width = gray.shape
+        if not (0 <= x < width and 0 <= y < height):
+            raise ValueError(
+                f'The focus point ({x}, {y}) is outside the depth map, which is {width}x{height} pixels.'
+            )
+        focus = int(gray[y, x])
+    if focus is None:
+        if focus_range:
+            raise ValueError('focus_range needs a focus depth or a focus point.')
+        return None
+    if not 0 <= focus <= 255:
+        raise ValueError(f'The focus depth must be between 0 and 255, got {focus}.')
+    if focus_range < 0:
+        raise ValueError(f'focus_range must be 0 or more, got {focus_range}.')
+    return focus
+
+
 def _blur_amount(value: int, min_blur: int, max_blur: int) -> int:
     """Blur amount for a depth: ``min_blur`` at depth 0, ``max_blur`` at depth 255."""
     return int(map_range(value, 0, 255, min_blur, max_blur))
@@ -150,21 +207,52 @@ def _layer_mask(values: np.ndarray, low: int, step: int, include_low: bool) -> n
     return np.where(above & (values <= low + step), 255, 0).astype(np.uint8)
 
 
-def _depth_layers(depth_map: np.ndarray, num_layers: int, min_blur: int,
+def _depth_layers(depth_map: np.ndarray, gray: np.ndarray, num_layers: int, min_blur: int,
                   max_blur: int) -> Iterator[Tuple[int, np.ndarray]]:
     """Yield ``(blur amount, mask)`` for every depth layer: the blur grows with the depth value."""
-    gray = _to_gray(depth_map)
     step, layers = get_depth_step_and_layer(depth_map, num_layers)
     for i, value in enumerate(layers):
         yield _blur_amount(value, min_blur, max_blur), _layer_mask(gray, value, step, include_low=(i == 0))
 
 
+def _focus_layers(gray: np.ndarray, focus: float, focus_range: float, num_layers: int, min_blur: int,
+                  max_blur: int) -> Iterator[Tuple[int, np.ndarray]]:
+    """Yield ``(blur amount, mask)`` per layer when focusing: the blur grows with the distance from the focus.
+
+    The first layer is the sharp band (blur amount 0). The other pixels are split into layers by their
+    distance from the band, so a depth just in front of the band and one just behind it get the same blur.
+    """
+    half_range = focus_range / 2
+    # Distance from the sharp band in depth steps (0 inside the band).
+    distance = np.ceil(np.maximum(np.abs(gray.astype(np.float64) - focus) - half_range, 0)).astype(np.int32)
+    # max_blur is reached at whichever end of the 0-255 scale is farther from the band.
+    farthest = math.ceil(max(focus - half_range, 255 - focus - half_range, 0))
+
+    yield 0, np.where(distance == 0, 255, 0).astype(np.uint8)
+
+    outside = distance[distance > 0]
+    if outside.size == 0:
+        return
+    step, layers = get_depth_step_and_layer(outside, num_layers)
+    for i, value in enumerate(layers):
+        blur_amount = int(map_range(value, 0, farthest, min_blur, max_blur))
+        yield blur_amount, _layer_mask(distance, value, step, include_low=(i == 0))
+
+
 def _blur_by_depth(img: np.ndarray, depth_map: np.ndarray, blur: BlurFunction, num_layers: int, min_blur: int,
-                   max_blur: int) -> np.ndarray:
+                   max_blur: int, focus: Optional[float] = None, focus_range: float = 0,
+                   focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
     """Blur ``img`` once per depth layer and keep, from each result, only the pixels of that layer."""
     _check_inputs(img, depth_map, num_layers)
+    gray = _to_gray(depth_map)
+    focus = _resolve_focus(gray, focus, focus_range, focus_point)
+    if focus is None:
+        layers = _depth_layers(depth_map, gray, num_layers, min_blur, max_blur)
+    else:
+        layers = _focus_layers(gray, focus, focus_range, num_layers, min_blur, max_blur)
+
     out = np.zeros(img.shape)
-    for blur_amount, mask in _depth_layers(depth_map, num_layers, min_blur, max_blur):
+    for blur_amount, mask in layers:
         # 0 means sharp. motion_blur and lens_blur cannot do a blur of size 0 (min_blur=0 used to crash);
         # gaussian_blur of size 0 was already a plain copy.
         blurred = img if blur_amount == 0 else blur(img, blur_amount)

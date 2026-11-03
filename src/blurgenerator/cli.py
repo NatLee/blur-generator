@@ -48,7 +48,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--depth_min_blur', type=int, default=1, help='Min. blur for depth blur. Default is 1.')
     parser.add_argument('--depth_max_blur', type=int, default=100, help='Max. blur for depth blur. Default is 100.')
 
+    # depth of field: focus on one depth, blur grows in both directions (issue #5)
+    parser.add_argument('--depth_focus', type=int, default=None,
+                        help='Depth (0-255) to keep sharp; the blur then grows with the distance from it, '
+                             'towards both 0 and 255. Default is off: the blur grows with the depth.')
+    parser.add_argument('--depth_focus_range', type=int, default=0,
+                        help='Width of the depth band around the focus that stays sharp: 10 keeps '
+                             'focus-5 to focus+5 sharp. Default is 0.')
+    parser.add_argument('--depth_focus_point', type=int, nargs=2, metavar=('X', 'Y'), default=None,
+                        help='Focus on the depth of this pixel of the depth map (X = column, Y = row), '
+                             'instead of --depth_focus.')
+
     return parser
+
+
+def _focus_options_given(args: argparse.Namespace) -> bool:
+    return args.depth_focus is not None or args.depth_focus_range != 0 or args.depth_focus_point is not None
 
 
 def _abort(message: str) -> NoReturn:
@@ -92,6 +107,9 @@ def _depth_blur(args: argparse.Namespace, img: np.ndarray, depth_map: np.ndarray
         num_layers=args.depth_num_layers,
         min_blur=args.depth_min_blur,
         max_blur=args.depth_max_blur,
+        focus=args.depth_focus,
+        focus_range=args.depth_focus_range,
+        focus_point=args.depth_focus_point,
     )
     if args.type == 'motion':
         return motion_blur_with_depth_map(img, depth_map, angle=args.motion_blur_angle, **depth_args)
@@ -128,6 +146,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     if args.input_depth_map is None:
         print(f'----- Generating `{args.type}` blur.')
+        if _focus_options_given(args):
+            print('----- `depth_focus`, `depth_focus_range` and `depth_focus_point` will be ignored '
+                  'without `--input_depth_map`.')
         try:
             result = _plain_blur(args)(img)
         except ValueError as error:
