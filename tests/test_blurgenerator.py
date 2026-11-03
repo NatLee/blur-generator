@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from blurgenerator import motion_blur, lens_blur, gaussian_blur
-from blurgenerator.lens_blur import complex_kernel_1d, get_parameters, multiply_kernel
+from blurgenerator.lens_blur import complex_kernel_1d, get_parameters, multiply_kernel, normalise_kernels
 
 from .helpers import random_image
 
@@ -151,6 +151,75 @@ class TestLensBlur(unittest.TestCase):
         plain = lens_blur(img, radius=10, exposure_gamma=1)
         bloom = lens_blur(img, radius=10, exposure_gamma=5)
         self.assertGreater(int((bloom > 0).sum()), int((plain > 0).sum()))
+
+
+def lens_kernel(radius, components):
+    """The 2D kernel lens_blur filters with: sum over the components of A * real + B * imaginary part."""
+    parameters, scale = get_parameters(components)
+    kernels = normalise_kernels(
+        [complex_kernel_1d(radius, scale, params['a'], params['b']) for params in parameters], parameters)
+    return sum(params['A'] * np.outer(k[0], k[0]).real + params['B'] * np.outer(k[0], k[0]).imag
+               for k, params in zip(kernels, parameters))
+
+
+def disc_area(radius, components):
+    """Size of the blur disc: the pixels the kernel lights to at least 10% of its peak.
+
+    The kernel can ring a little (small negative and positive lobes), so a moment such as the RMS radius
+    can go down while the disc grows; counting the bright pixels cannot.
+    """
+    kernel = lens_kernel(radius, components)
+    return int((kernel >= 0.1 * kernel.max()).sum())
+
+
+def complex_kernel_1d_up_to_1_2(radius, scale, a, b):
+    """complex_kernel_1d as it was up to 1.2.0, frozen for comparison: it sampled the kernel at
+    2 * ceil(radius) + 1 points spread evenly over [-radius, radius], so 2.5 gave the kernel of 3."""
+    kernel_radius = int(np.ceil(radius))
+    kernel_size = kernel_radius * 2 + 1
+    ax = np.linspace(-radius, radius, kernel_size, dtype=np.float32)
+    ax = ax * scale * (1 / radius)
+    kernel = np.zeros((kernel_size,), dtype=np.complex64)
+    kernel.real = np.exp(-a * (ax**2)) * np.cos(b * (ax**2))
+    kernel.imag = np.exp(-a * (ax**2)) * np.sin(b * (ax**2))
+    return kernel.reshape((1, kernel_size))
+
+
+class TestLensRadius(unittest.TestCase):
+    """Decimal radii really blur by that much (up to 1.2.0 they acted like the next whole number)."""
+
+    def test_a_decimal_radius_lies_between_the_whole_radii_around_it(self):
+        for components in range(1, 7):
+            for low in (2, 4):
+                with self.subTest(components=components, radius=low + 0.5):
+                    self.assertLess(disc_area(low, components), disc_area(low + 0.5, components))
+                    self.assertLess(disc_area(low + 0.5, components), disc_area(low + 1, components))
+
+    def test_the_disc_never_shrinks_as_the_radius_grows(self):
+        radii = np.arange(1, 12.01, 0.125)
+        for components in range(1, 7):
+            with self.subTest(components=components):
+                areas = [disc_area(radius, components) for radius in radii]
+                self.assertTrue(all(np.diff(areas) >= 0), dict(zip(radii.tolist(), areas)))
+                self.assertGreater(areas[-1], areas[0])
+
+    def test_a_decimal_radius_changes_the_image(self):
+        # Up to 1.2.0, radius=2.5 gave exactly the image of radius=3.
+        img = random_image()
+        results = [lens_blur(img, radius=radius) for radius in (2, 2.5, 3)]
+        self.assertFalse(np.array_equal(results[1], results[0]))
+        self.assertFalse(np.array_equal(results[1], results[2]))
+
+    def test_whole_radii_give_the_same_kernel_as_before(self):
+        for components in range(1, 7):
+            parameters, scale = get_parameters(components)
+            for radius in (1, 2, 3, 5, 12, 40):
+                for params in parameters:
+                    with self.subTest(components=components, radius=radius):
+                        old = complex_kernel_1d_up_to_1_2(radius, scale, params['a'], params['b'])
+                        new = complex_kernel_1d(radius, scale, params['a'], params['b'])
+                        self.assertEqual(new.dtype, old.dtype)
+                        self.assertTrue(np.array_equal(new, old))
 
 
 class TestGaussianBlur(unittest.TestCase):

@@ -102,6 +102,18 @@ cv2.imwrite('./gaussian.jpg', gaussian_blur(img, 31))
 - **Gaussian blur** is a plain soft blur. With the default `sigma=5`, kernels wider than about 31 pixels look
   the same; pass `sigma=0` to let the kernel size set the strength.
 
+### Decimal lens radii
+
+A decimal `radius` gives a disc between the two whole sizes around it. Here one bright pixel goes through
+`lens_blur()` with its other settings left at the defaults, enlarged 10 times so that every pixel shows:
+
+| `radius=2` | `radius=2.5` | `radius=3` |
+|:---:|:---:|:---:|
+| ![a small disc](doc/readme/lens-radius-2.png) | ![a medium disc](doc/readme/lens-radius-2.5.png) | ![a larger, rounder disc](doc/readme/lens-radius-3.png) |
+
+Up to 1.2.0 a decimal radius blurred exactly like the next whole number: 2.5 gave the picture of 3.
+Whole radii give exactly the same result as before.
+
 ## Blur by depth
 
 A depth map is a grayscale image, the same size as the photo, whose values (0-255) say how far away each
@@ -286,7 +298,7 @@ wrong path.
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `radius` | 3.0 | Radius of the blur disc in pixels, above 0. |
+| `radius` | 3.0 | Radius of the blur disc in pixels, above 0; decimals work. |
 | `components` | 5 | Kernel components, 1 to 6 (higher values use 6). More is rounder and slower. |
 | `exposure_gamma` | 5.0 | How much highlights bloom into discs; 1 turns it off. |
 
@@ -302,7 +314,7 @@ wrong path.
 ```text
 motion_blur_with_depth_map(img, depth_map, angle=30, num_layers=10, min_blur=1, max_blur=100,
                            *, focus=None, focus_range=0, focus_point=None)
-lens_blur_with_depth_map(img, depth_map, components=5, exposure_gamma=5, num_layers=10, min_blur=1,
+lens_blur_with_depth_map(img, depth_map, components=5, exposure_gamma=5.0, num_layers=10, min_blur=1,
                          max_blur=100, *, focus=None, focus_range=0, focus_point=None)
 gaussian_blur_with_depth_map(img, depth_map, sigma=5, num_layers=10, min_blur=1, max_blur=100,
                              *, focus=None, focus_range=0, focus_point=None)
