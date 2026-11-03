@@ -202,6 +202,107 @@ The rules with a focus:
 - Without `focus`, `focus_point` and `focus_range` the result is exactly what it was before these options
   existed.
 
+## The maths
+
+This is exactly what the code computes, written as formulas. *I* is the input image and *O* the output,
+both 8-bit (0 to 255), and every colour channel goes through the same steps. Pixel (*x*, *y*) is column
+*x* and row *y*.
+
+**Filtering.** All three blurs slide a kernel *K* over the image (OpenCV's `filter2D` and `GaussianBlur`).
+For a kernel of *n* × *n* values, anchored at *a* = ⌊*n*/2⌋:
+
+```math
+(I \star K)(x, y) = \sum_{j=0}^{n-1} \sum_{i=0}^{n-1} K(i, j)\, I(x + i - a,\ y + j - a)
+```
+
+Pixels outside the image are mirrored (…, 2, 1, 0, 1, 2, …) for motion and Gaussian blur, and copied
+from the nearest edge for lens blur. Results are rounded to whole numbers from 0 to 255.
+
+**Motion blur** (`size` *n*, `angle` *θ*). Start with *L*, an *n* × *n* kernel that is 1 on row
+⌊(*n* − 1)/2⌋ and 0 elsewhere. Turn it by *θ* counter-clockwise around its centre *c* = (*n* − 1)/2,
+reading *L* between pixels by bilinear interpolation (0 outside the kernel), and scale it to sum to 1:
+
+```math
+(R_\theta L)(x, y) = L\big(c + (x - c)\cos\theta - (y - c)\sin\theta,\ \ c + (x - c)\sin\theta + (y - c)\cos\theta\big),
+\qquad M = \frac{R_\theta L}{\sum R_\theta L}, \qquad O = I \star M
+```
+
+**Gaussian blur** (`kernel` *k*, `sigma` *σ*). OpenCV needs an odd size, so *k*′ = *k* + 1 when *k* is even
+and *k*′ = *k* otherwise, and *h* = (*k*′ − 1)/2:
+
+```math
+g(t) = \frac{e^{-t^2 / 2\sigma^2}}{\sum_{s=-h}^{h} e^{-s^2 / 2\sigma^2}}, \qquad
+G(i, j) = g(i - h)\, g(j - h), \qquad O = I \star G
+```
+
+With `sigma=0` OpenCV picks *σ* = 0.3 ((*k*′ − 1)/2 − 1) + 0.8 itself, and for *k*′ up to 7 it uses a fixed
+binomial kernel instead.
+
+**Lens blur** (`radius` *r*, `components` *m*, `exposure_gamma` *γ*). The kernel is a sum of *m* complex
+Gaussians that together approximate a flat disc (see the Reference below). For *m* = 1 to 6 there is a
+preset of numbers *a*<sub>*c*</sub>, *b*<sub>*c*</sub>, *A*<sub>*c*</sub>, *B*<sub>*c*</sub> per
+component and a scale *s* (`kernel_params` and `kernel_scales` in `lens_blur.py`); larger *m* use the
+preset for 6, smaller ones the preset for 1. The kernel is sampled at whole pixels *x* = −⌈*r*⌉ … ⌈*r*⌉, each measured in units of the
+radius:
+
+```math
+u_x = \frac{s\,x}{r}, \qquad k_c(x) = e^{-a_c u_x^2} \big(\cos(b_c u_x^2) + i \sin(b_c u_x^2)\big)
+```
+
+```math
+K(x, y) = \frac{1}{Z} \sum_{c=1}^{m} \Big( A_c\, \mathrm{Re}\big[k_c(x)\, k_c(y)\big] + B_c\, \mathrm{Im}\big[k_c(x)\, k_c(y)\big] \Big),
+\qquad Z \text{ such that } \sum_{x, y} K(x, y) = 1
+```
+
+Bright spots are lifted to the power *γ* before filtering and brought back afterwards, which is what makes
+them bloom into discs:
+
+```math
+O = \Big\lfloor 255 \cdot \min\Big(1,\ \max\big(0,\ (I/255)^{\gamma} \star K\big)^{1/\gamma}\Big) \Big\rfloor
+```
+
+The code filters with each component separately, first along the rows and then along the columns, and
+adds the results up; that is the same as filtering with *K*.
+
+**Blur by depth** (`num_layers` *n*, `min_blur` *b*<sub>0</sub>, `max_blur` *b*<sub>1</sub>). *D* is the
+depth map in grayscale (a BGR depth map is converted with OpenCV's `COLOR_BGR2GRAY`), and
+*d*<sub>lo</sub>, *d*<sub>hi</sub> are the smallest and largest values in the depth map. The depths are cut
+into layers of height Δ, starting at *ℓ*<sub>*i*</sub>:
+
+```math
+\Delta = \max\Big(\Big\lfloor \frac{d_{hi} - d_{lo}}{n} \Big\rfloor,\ 1\Big), \qquad
+\ell_i = d_{lo} + i\,\Delta \quad \text{for every } \ell_i < \max(d_{hi},\ d_{lo} + 1)
+```
+
+Layer *i* holds the pixels with *ℓ*<sub>*i*</sub> < *D* ≤ *ℓ*<sub>*i*</sub> + Δ (the first layer also
+*D* = *ℓ*<sub>0</sub>), so every pixel is in exactly one layer. Its blur amount is the motion `size`, the
+lens `radius` or the Gaussian `kernel` used for that layer, and 0 means no blur:
+
+```math
+\beta_i = \Big\lfloor b_0 + \frac{\ell_i}{255}\,(b_1 - b_0) \Big\rfloor, \qquad
+O(x, y) = \mathrm{blur}_{\beta_i}(I)(x, y) \quad \text{for the layer } i \text{ that holds } (x, y)
+```
+
+**Focus** (`focus` *f*, `focus_range` *w*). With `focus_point=(x, y)` the focus is the depth of that
+pixel, *f* = *D*(*x*, *y*). The layers then follow each pixel's distance *δ* from the sharp band instead of
+its depth, and the blur reaches *b*<sub>1</sub> at the largest distance any depth can have, *δ*<sub>max</sub>:
+
+```math
+\delta = \Big\lceil \max\big(|D - f| - \tfrac{w}{2},\ 0\big) \Big\rceil, \qquad
+\delta_{max} = \Big\lceil \max\big(f - \tfrac{w}{2},\ 255 - f - \tfrac{w}{2},\ 0\big) \Big\rceil
+```
+
+Pixels with *δ* = 0 keep their value. The others are cut into layers exactly as above, with *δ* in place of
+*D* (so *d*<sub>lo</sub> and *d*<sub>hi</sub> are the smallest and largest *δ* among them), and
+
+```math
+\beta_i = \Big\lfloor b_0 + \frac{\ell_i}{\delta_{max}}\,(b_1 - b_0) \Big\rfloor
+```
+
+[A test](tests/test_readme_formulas.py) writes these
+formulas out again with NumPy and compares them with the package: the motion and Gaussian kernels match to
+float rounding, lens blur to within 1 of 255 for a few pixels, and blur by depth pixel for pixel.
+
 ## Command line
 
 ```text
