@@ -79,35 +79,36 @@ def build_parser() -> argparse.ArgumentParser:
                              'how much each part of the image is blurred. Optional.')
 
     parser.add_argument('--output', type=str, default='./result.png',
-                        help='Where to save the result. Default is `./result.png`.')
+                        help='Where to save the result. Default is `%(default)s`.')
 
     parser.add_argument('--type', type=str, default='motion',
-                        help=f'Blur type: {_listing(_quoted(BLUR_TYPES), "or")}. Default is `motion`.')
+                        help=f'Blur type: {_listing(_quoted(BLUR_TYPES), "or")}. Default is `%(default)s`.')
 
     parser.add_argument('--motion_blur_size', type=int, default=100,
-                        help='Length of the motion blur in pixels. Default is 100.')
+                        help='Length of the motion blur in pixels. Default is %(default)s.')
     parser.add_argument('--motion_blur_angle', type=int, default=30,
-                        help='Direction of the motion blur in degrees. Default is 30.')
+                        help='Direction of the motion blur in degrees. Default is %(default)s.')
 
     parser.add_argument('--lens_radius', type=float, default=5.0,
-                        help='Radius of the lens blur in pixels. Default is 5.0.')
+                        help='Radius of the lens blur in pixels. Default is %(default)s.')
     parser.add_argument('--lens_components', type=int, default=4,
                         help='Kernel components of the lens blur, 1 to 6; more is rounder and slower. '
-                             'Default is 4.')
+                             'Default is %(default)s.')
     parser.add_argument('--lens_exposure_gamma', type=int, default=2,
-                        help='How much bright spots bloom in the lens blur; 1 turns it off. Default is 2.')
+                        help='How much bright spots bloom in the lens blur; 1 turns it off. Default is %(default)s.')
 
     parser.add_argument('--gaussian_kernel', type=int, default=100,
-                        help=f'Kernel size of the gaussian blur in pixels (sigma is {DEFAULT_SIGMA}). Default is 100.')
+                        help=f'Kernel size of the gaussian blur in pixels (sigma is {DEFAULT_SIGMA}). '
+                             'Default is %(default)s.')
 
     # depth blur settings
     parser.add_argument('--depth_num_layers', type=int, default=10,
                         help='Number of depth layers; more layers give smoother transitions but take longer. '
-                             'Default is 10.')
+                             'Default is %(default)s.')
     parser.add_argument('--depth_min_blur', type=int, default=1,
-                        help='Blur at depth 0, or right next to the focus. Default is 1.')
+                        help='Blur at depth 0, or right next to the focus. Default is %(default)s.')
     parser.add_argument('--depth_max_blur', type=int, default=100,
-                        help='Blur at depth 255, or farthest from the focus. Default is 100.')
+                        help='Blur at depth 255, or farthest from the focus. Default is %(default)s.')
 
     # depth of field: focus on one depth, blur grows in both directions (issue #5)
     parser.add_argument('--depth_focus', type=int, default=None,
@@ -115,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
                              'towards both 0 and 255. Default is off: the blur grows with the depth.')
     parser.add_argument('--depth_focus_range', type=int, default=0,
                         help='Width of the depth band around the focus that stays sharp: 10 keeps '
-                             'focus-5 to focus+5 sharp. Default is 0.')
+                             'focus-5 to focus+5 sharp. Default is %(default)s.')
     parser.add_argument('--depth_focus_point', type=int, nargs=2, metavar=('X', 'Y'), default=None,
                         help='Focus on the depth of this pixel of the depth map (X = column, Y = row), '
                              'instead of --depth_focus.')
