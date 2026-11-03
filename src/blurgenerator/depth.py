@@ -14,7 +14,7 @@ There are two ways to pick the strength of a layer:
   reaches ``max_blur`` at whichever end of the 0-255 scale is farther from the band.
 """
 import math
-from typing import Callable, Iterator, List, Optional, Sequence, Tuple
+from typing import Callable, Iterator, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -253,37 +253,3 @@ def _blur_by_depth(img: np.ndarray, depth_map: np.ndarray, blur: BlurFunction, n
         # The result is an 8-bit image, as it has always been.
         out = cv2.add(out, layer, dtype=cv2.CV_8U)
     return out
-
-
-# ----------------------------------------------------------------------------------------------------------
-# Kept for compatibility. Up to 1.1.x the depth-map blurs were built from these two functions, and code
-# written against those versions may import them from blurgenerator.depth. The package itself no longer
-# uses them: it works with one-channel masks (_depth_layers). They can go in the next major release (2.0.0).
-
-def get_blur_amount_and_l_mask(depth_map: np.ndarray, value: int, step: int, min_blur: int, max_blur: int,
-                               include_value: bool = False) -> Tuple[int, np.ndarray]:
-    """Return the blur amount and a 3-channel mask (0 or 255) for the depth layer that starts at ``value``.
-
-    The layer covers depths in ``(value, value + step]``. The lowest layer passes ``include_value=True`` so
-    it also covers ``depth == value``; otherwise pixels at the minimum depth belong to no layer.
-    """
-    mask = _layer_mask(_to_gray(depth_map), value, step, include_value)
-    return _blur_amount(value, DEPTH_MAX, min_blur, max_blur), _three_channel_mask(mask, depth_map)
-
-
-def blur_with_depth(depth_map: np.ndarray, num_layers: int = DEFAULT_NUM_LAYERS, min_blur: int = DEFAULT_MIN_BLUR,
-                    max_blur: int = DEFAULT_MAX_BLUR) -> List[Tuple[int, np.ndarray]]:
-    """Return ``(blur amount, 3-channel mask)`` for every depth layer of ``depth_map``."""
-    layers = _depth_layers(depth_map, _to_gray(depth_map), num_layers, min_blur, max_blur)
-    return [(blur_amount, _three_channel_mask(mask, depth_map)) for blur_amount, mask in layers]
-
-
-def _three_channel_mask(mask: np.ndarray, depth_map: np.ndarray) -> np.ndarray:
-    """``mask`` in every color channel, shaped like a BGR ``depth_map`` (a 4th channel keeps its values)."""
-    if depth_map.ndim == 2 or depth_map.shape[2] == 1:
-        return cv2.merge([mask, mask, mask])
-    l_mask = depth_map.copy()
-    l_mask[:, :, 0] = mask
-    l_mask[:, :, 1] = mask
-    l_mask[:, :, 2] = mask
-    return l_mask
