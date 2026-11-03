@@ -7,6 +7,10 @@ from typing import Optional
 import cv2
 import numpy as np
 
+#: Ranges (inclusive) that the length and the angle are drawn from when the caller leaves them out.
+RANDOM_SIZE = (20, 80)
+RANDOM_ANGLE = (15, 30)
+
 
 def motion_blur(img: np.ndarray, size: Optional[int] = None, angle: Optional[float] = None) -> np.ndarray:
     """Blur ``img`` as if the camera moved in a straight line while the photo was taken.
@@ -24,9 +28,9 @@ def motion_blur(img: np.ndarray, size: Optional[int] = None, angle: Optional[flo
         ValueError: if ``size`` is below 1.
     """
     if size is None:
-        size = randint(20, 80)
+        size = randint(*RANDOM_SIZE)
     if angle is None:
-        angle = randint(15, 30)
+        angle = randint(*RANDOM_ANGLE)
     if size < 1:
         raise ValueError(f'size must be at least 1 pixel, got {size}.')
 

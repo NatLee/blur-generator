@@ -19,8 +19,8 @@ from typing import Callable, Iterator, List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from .gaussian_blur import gaussian_blur
-from .lens_blur import lens_blur
+from .gaussian_blur import DEFAULT_SIGMA, gaussian_blur
+from .lens_blur import DEFAULT_COMPONENTS, DEFAULT_EXPOSURE_GAMMA, lens_blur
 from .motion_blur import motion_blur
 
 #: A blur function: takes the image and a blur amount, returns the blurred image.
@@ -29,6 +29,11 @@ BlurFunction = Callable[[np.ndarray, int], np.ndarray]
 #: Depth maps are 8-bit images, so depths run from 0 to DEPTH_MAX (255).
 DEPTH_DTYPE = np.uint8
 DEPTH_MAX = int(np.iinfo(DEPTH_DTYPE).max)
+
+#: Defaults shared by the depth-map blur functions.
+DEFAULT_NUM_LAYERS = 10
+DEFAULT_MIN_BLUR = 1
+DEFAULT_MAX_BLUR = 100
 
 
 def map_range(value, inMin, inMax, outMin, outMax):
@@ -70,8 +75,8 @@ def get_blur_amount_and_l_mask(depth_map: np.ndarray, value: int, step: int, min
     return _blur_amount(value, DEPTH_MAX, min_blur, max_blur), l_mask
 
 
-def blur_with_depth(depth_map: np.ndarray, num_layers: int = 10, min_blur: int = 1,
-                    max_blur: int = 100) -> List[Tuple[int, np.ndarray]]:
+def blur_with_depth(depth_map: np.ndarray, num_layers: int = DEFAULT_NUM_LAYERS, min_blur: int = DEFAULT_MIN_BLUR,
+                    max_blur: int = DEFAULT_MAX_BLUR) -> List[Tuple[int, np.ndarray]]:
     """Return ``(blur amount, 3-channel mask)`` for every depth layer of ``depth_map``."""
     step, layers = get_depth_step_and_layer(depth_map, num_layers)
     return [
@@ -80,8 +85,9 @@ def blur_with_depth(depth_map: np.ndarray, num_layers: int = 10, min_blur: int =
     ]
 
 
-def motion_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, angle: float = 30, num_layers: int = 10,
-                               min_blur: int = 1, max_blur: int = 100, *, focus: Optional[float] = None,
+def motion_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, angle: float = 30,
+                               num_layers: int = DEFAULT_NUM_LAYERS, min_blur: int = DEFAULT_MIN_BLUR,
+                               max_blur: int = DEFAULT_MAX_BLUR, *, focus: Optional[float] = None,
                                focus_range: float = 0,
                                focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
     """Motion blur whose length (in pixels) follows the depth map.
@@ -109,9 +115,10 @@ def motion_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, angle: fl
     return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur, focus, focus_range, focus_point)
 
 
-def lens_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, components: int = 5,
-                             exposure_gamma: float = 5, num_layers: int = 10, min_blur: int = 1,
-                             max_blur: int = 100, *, focus: Optional[float] = None, focus_range: float = 0,
+def lens_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, components: int = DEFAULT_COMPONENTS,
+                             exposure_gamma: float = DEFAULT_EXPOSURE_GAMMA, num_layers: int = DEFAULT_NUM_LAYERS,
+                             min_blur: int = DEFAULT_MIN_BLUR, max_blur: int = DEFAULT_MAX_BLUR, *,
+                             focus: Optional[float] = None, focus_range: float = 0,
                              focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
     """Lens blur whose radius (in pixels) follows the depth map.
 
@@ -124,8 +131,9 @@ def lens_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, components:
     return _blur_by_depth(img, depth_map, blur, num_layers, min_blur, max_blur, focus, focus_range, focus_point)
 
 
-def gaussian_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, sigma: float = 5, num_layers: int = 10,
-                                 min_blur: int = 1, max_blur: int = 100, *, focus: Optional[float] = None,
+def gaussian_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, sigma: float = DEFAULT_SIGMA,
+                                 num_layers: int = DEFAULT_NUM_LAYERS, min_blur: int = DEFAULT_MIN_BLUR,
+                                 max_blur: int = DEFAULT_MAX_BLUR, *, focus: Optional[float] = None,
                                  focus_range: float = 0,
                                  focus_point: Optional[Sequence[int]] = None) -> np.ndarray:
     """Gaussian blur whose kernel size (in pixels) follows the depth map.

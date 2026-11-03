@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from .depth import gaussian_blur_with_depth_map, lens_blur_with_depth_map, motion_blur_with_depth_map
-from .gaussian_blur import gaussian_blur
+from .gaussian_blur import DEFAULT_SIGMA, gaussian_blur
 from .lens_blur import lens_blur
 from .motion_blur import motion_blur
 
@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help='How much bright spots bloom in the lens blur; 1 turns it off. Default is 2.')
 
     parser.add_argument('--gaussian_kernel', type=int, default=100,
-                        help='Kernel size of the gaussian blur in pixels (sigma is 5). Default is 100.')
+                        help=f'Kernel size of the gaussian blur in pixels (sigma is {DEFAULT_SIGMA}). Default is 100.')
 
     # depth blur settings
     parser.add_argument('--depth_num_layers', type=int, default=10,
@@ -135,8 +135,8 @@ def _depth_blur(args: argparse.Namespace, img: np.ndarray, depth_map: np.ndarray
     if args.type == 'lens':
         return lens_blur_with_depth_map(img, depth_map, components=args.lens_components,
                                         exposure_gamma=args.lens_exposure_gamma, **depth_args)
-    # gaussian_blur() defaults to sigma=5, which the CLI has always used.
-    return gaussian_blur_with_depth_map(img, depth_map, sigma=5, **depth_args)
+    # Like the blur without a depth map, use the library's default sigma.
+    return gaussian_blur_with_depth_map(img, depth_map, **depth_args)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:

@@ -13,6 +13,10 @@ from typing import Dict, List, Tuple
 import cv2
 import numpy as np
 
+#: Defaults of lens_blur() and lens_blur_with_depth_map().
+DEFAULT_COMPONENTS = 5
+DEFAULT_EXPOSURE_GAMMA = 5.0
+
 # These scales bring the size of the components below to roughly the requested radius (hand-tuned).
 kernel_scales = [1.4, 1.2, 1.2, 1.2, 1.2, 1.2]
 
@@ -129,7 +133,8 @@ def filter_task(idx: int, channel: int, img_channel: np.ndarray, component: np.n
     return idx, channel, weighted_sum(final, component_params)
 
 
-def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = 5, exposure_gamma: float = 5.0) -> np.ndarray:
+def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = DEFAULT_COMPONENTS,
+              exposure_gamma: float = DEFAULT_EXPOSURE_GAMMA) -> np.ndarray:
     """Blur ``img`` like an out-of-focus camera lens: bright spots turn into round discs ("bokeh").
 
     Args:
