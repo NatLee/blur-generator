@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -113,6 +114,31 @@ class TestCliDepthMap(unittest.TestCase):
                             '--output', out_path)
                     expected = fn(img, depth, num_layers=3, min_blur=1, max_blur=9, **kwargs)
                     self.assertTrue(np.array_equal(cv2.imread(out_path), expected))
+
+    def test_help_shows_the_real_default_of_depth_num_layers(self):
+        # 1.1.0's --help said "Default is 3", but the CLI has always used 10 layers.
+        out = io.StringIO()
+        with mock.patch.object(sys, 'argv', ['blurgenerator', '--help']), contextlib.redirect_stdout(out):
+            with self.assertRaises(SystemExit):
+                cli_main()
+        help_text = re.sub(r'\x1b\[[0-9;]*m', '', out.getvalue())  # drop colors (Python 3.14+)
+        match = re.search(r'Layer\s+for\s+depth\s+blur\.\s+Default\s+is\s+(\d+)\.', help_text)
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), '10')
+
+        # ... and 10 is what the CLI really uses when --depth_num_layers is not given.
+        img = random_image()
+        depth = gradient_depth_map()
+        with tempfile.TemporaryDirectory() as tmp:
+            img_path = os.path.join(tmp, 'img.png')
+            depth_path = os.path.join(tmp, 'depth.png')
+            out_path = os.path.join(tmp, 'out.png')
+            cv2.imwrite(img_path, img)
+            cv2.imwrite(depth_path, depth)
+            run_cli('--type', 'gaussian', '--input', img_path, '--input_depth_map', depth_path,
+                    '--depth_max_blur', '9', '--output', out_path)
+            expected = gaussian_blur_with_depth_map(img, depth, num_layers=10, min_blur=1, max_blur=9)
+            self.assertTrue(np.array_equal(cv2.imread(out_path), expected))
 
 
 if __name__ == '__main__':

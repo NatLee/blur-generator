@@ -34,7 +34,7 @@ def main():
     parser.add_argument('--gaussian_kernel', type=int, default=100, help='Kernel for gaussian. Default is 100.')
 
     # depth blur settings
-    parser.add_argument('--depth_num_layers', type=int, default=10, help='Layer for depth blur. Default is 3.')
+    parser.add_argument('--depth_num_layers', type=int, default=10, help='Layer for depth blur. Default is 10.')
     parser.add_argument('--depth_min_blur', type=int, default=1, help='Min. blur for depth blur. Default is 1.')
     parser.add_argument('--depth_max_blur', type=int, default=100, help='Max. blur for depth blur. Default is 100.')
 
