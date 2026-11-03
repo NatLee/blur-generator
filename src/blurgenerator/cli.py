@@ -25,28 +25,47 @@ IMAGE_SUFFIXES = ('.jpg', '.jpeg', '.png')
 
 def build_parser() -> argparse.ArgumentParser:
     """The argument parser of the ``blurgenerator`` command."""
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        prog='blurgenerator',
+        description='Add motion, lens or gaussian blur to an image, optionally guided by a depth map.',
+    )
 
-    parser.add_argument('--input', type=str, default=None, help='Specific path of image as `input`.')
-    parser.add_argument('--input_depth_map', type=str, default=None, help='Specific path of depth image as `input_depth_map`.')
+    parser.add_argument('--input', type=str, default=None,
+                        help='Image to blur (.jpg, .jpeg or .png). Required.')
+    parser.add_argument('--input_depth_map', type=str, default=None,
+                        help='Depth map (.jpg, .jpeg or .png, same size as the input) that decides how much '
+                             'each part of the image is blurred. Optional.')
 
-    parser.add_argument('--output', type=str, default='./result.png', help='Specific path for `output`. Default is `./result.png`.')
+    parser.add_argument('--output', type=str, default='./result.png',
+                        help='Where to save the result. Default is `./result.png`.')
 
-    parser.add_argument('--type', type=str, default='motion', help='Blur type of `motion`, `lens`, or `gaussian`. Default is `motion`.')
+    parser.add_argument('--type', type=str, default='motion',
+                        help='Blur type: `motion`, `lens` or `gaussian`. Default is `motion`.')
 
-    parser.add_argument('--motion_blur_size', type=int, default=100, help='Size for motion blur. Default is 100.')
-    parser.add_argument('--motion_blur_angle', type=int, default=30, help='Angle for motion blur. Default is 30.')
+    parser.add_argument('--motion_blur_size', type=int, default=100,
+                        help='Length of the motion blur in pixels. Default is 100.')
+    parser.add_argument('--motion_blur_angle', type=int, default=30,
+                        help='Direction of the motion blur in degrees. Default is 30.')
 
-    parser.add_argument('--lens_radius', type=float, default=5.0, help='Radius for lens blur. Default is 5.0.')
-    parser.add_argument('--lens_components', type=int, default=4, help='Components for lens blur. Default is 4.')
-    parser.add_argument('--lens_exposure_gamma', type=int, default=2, help='Exposure gamma for lens blur. Default is 2.')
+    parser.add_argument('--lens_radius', type=float, default=5.0,
+                        help='Radius of the lens blur in pixels. Default is 5.0.')
+    parser.add_argument('--lens_components', type=int, default=4,
+                        help='Kernel components of the lens blur, 1 to 6; more is rounder and slower. '
+                             'Default is 4.')
+    parser.add_argument('--lens_exposure_gamma', type=int, default=2,
+                        help='How much bright spots bloom in the lens blur; 1 turns it off. Default is 2.')
 
-    parser.add_argument('--gaussian_kernel', type=int, default=100, help='Kernel for gaussian. Default is 100.')
+    parser.add_argument('--gaussian_kernel', type=int, default=100,
+                        help='Kernel size of the gaussian blur in pixels (sigma is 5). Default is 100.')
 
     # depth blur settings
-    parser.add_argument('--depth_num_layers', type=int, default=10, help='Layer for depth blur. Default is 10.')
-    parser.add_argument('--depth_min_blur', type=int, default=1, help='Min. blur for depth blur. Default is 1.')
-    parser.add_argument('--depth_max_blur', type=int, default=100, help='Max. blur for depth blur. Default is 100.')
+    parser.add_argument('--depth_num_layers', type=int, default=10,
+                        help='Number of depth layers; more layers give smoother transitions but take longer. '
+                             'Default is 10.')
+    parser.add_argument('--depth_min_blur', type=int, default=1,
+                        help='Blur at depth 0, or right next to the focus. Default is 1.')
+    parser.add_argument('--depth_max_blur', type=int, default=100,
+                        help='Blur at depth 255, or farthest from the focus. Default is 100.')
 
     # depth of field: focus on one depth, blur grows in both directions (issue #5)
     parser.add_argument('--depth_focus', type=int, default=None,
