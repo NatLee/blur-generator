@@ -1,9 +1,15 @@
 """
 Command line interface: ``blurgenerator --type lens --input photo.jpg --output result.png``.
+
+Exit codes: the checks that print a ``-----`` message on stdout (missing input, wrong file type, unknown
+blur type, output not written) end with exit code 0, as they always have. Errors that used to end in a
+Python traceback (an unreadable image, an invalid blur setting) now print a message on stderr instead and
+still exit with code 1.
 """
 import argparse
+import sys
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Callable, NoReturn, Optional, Sequence
 
 import cv2
 import numpy as np
@@ -45,8 +51,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _abort(message: str) -> NoReturn:
+    """Print ``message`` on stderr and exit with code 1."""
+    sys.exit(f'----- {message}')
+
+
 def _is_supported_image(path: Path) -> bool:
-    return path.suffix in IMAGE_SUFFIXES
+    return path.suffix.lower() in IMAGE_SUFFIXES
+
+
+def _read_image(path: Path, option: str) -> np.ndarray:
+    image = cv2.imread(path.absolute().as_posix())
+    if image is None:
+        _abort(f'Could not read `{path}` ({option}) as an image.')
+    return image
+
+
+def _write_image(path: str, image: np.ndarray) -> None:
+    try:
+        written = cv2.imwrite(path, image)
+    except cv2.error:
+        _abort(f'Could not write `{path}`: the file name must end in an image extension such as .png or .jpg.')
+    if not written:
+        print(f'----- Could not write `{path}`. Check that the folder exists.')
 
 
 def _plain_blur(args: argparse.Namespace) -> Callable[[np.ndarray], np.ndarray]:
@@ -80,36 +107,40 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args = build_parser().parse_args(argv)
 
     if not args.input:
-        print('----- Please specific image for input.')
+        print('----- Please specify an input image with `--input`.')
         return
 
     img_path = Path(args.input)
 
     if not img_path.is_file():
-        print('----- `img_path` is not a file!')
+        print(f'----- `{args.input}` is not a file.')
         return
 
     if not _is_supported_image(img_path):
-        print('----- Only support common types of image `.jpg` and `.png`.')
+        print('----- Only .jpg, .jpeg and .png images are supported.')
         return
 
     if args.type not in BLUR_TYPES:
-        print('----- No type has been selected. Please specific `motion`, `lens`, or `gaussian`.')
+        print(f'----- Unknown blur type `{args.type}`. Use `motion`, `lens` or `gaussian`.')
         return
 
-    img = cv2.imread(img_path.absolute().as_posix())
+    img = _read_image(img_path, '--input')
 
     if args.input_depth_map is None:
         print(f'----- Generating `{args.type}` blur.')
-        cv2.imwrite(args.output, _plain_blur(args)(img))
+        try:
+            result = _plain_blur(args)(img)
+        except ValueError as error:
+            _abort(str(error))
+        _write_image(args.output, result)
         return
 
     depth_map_path = Path(args.input_depth_map)
     if not depth_map_path.is_file():
-        print('----- `input_depth_map` is not a file!')
+        print(f'----- `{args.input_depth_map}` (--input_depth_map) is not a file.')
         return
     if not _is_supported_image(depth_map_path):
-        print('----- Only support common types of image `.jpg` and `.png`.')
+        print('----- Only .jpg, .jpeg and .png images are supported.')
         return
 
     print(f'----- Generating `{args.type}` blur with depth map.')
@@ -117,5 +148,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     print('----- `lens_radius` will be ignored.')
     print('----- `gaussian_kernel` will be ignored.')
 
-    depth_map = cv2.imread(depth_map_path.absolute().as_posix())
-    cv2.imwrite(args.output, _depth_blur(args, img, depth_map))
+    depth_map = _read_image(depth_map_path, '--input_depth_map')
+    try:
+        result = _depth_blur(args, img, depth_map)
+    except ValueError as error:
+        _abort(str(error))
+    _write_image(args.output, result)

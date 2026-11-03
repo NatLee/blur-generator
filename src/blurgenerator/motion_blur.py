@@ -19,11 +19,16 @@ def motion_blur(img: np.ndarray, size: Optional[int] = None, angle: Optional[flo
 
     Returns:
         The blurred image, with the same shape and dtype as ``img``.
+
+    Raises:
+        ValueError: if ``size`` is below 1.
     """
     if size is None:
         size = randint(20, 80)
     if angle is None:
         angle = randint(15, 30)
+    if size < 1:
+        raise ValueError(f'size must be at least 1 pixel, got {size}.')
 
     # A horizontal line through the middle of a size x size kernel, rotated by `angle`.
     kernel = np.zeros((size, size), dtype=np.float32)

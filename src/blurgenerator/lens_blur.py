@@ -133,7 +133,7 @@ def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = 5, exposur
     """Blur ``img`` like an out-of-focus camera lens: bright spots turn into round discs ("bokeh").
 
     Args:
-        img: 8-bit color image to blur, for example from ``cv2.imread``.
+        img: 8-bit image to blur, for example from ``cv2.imread``. Grayscale and color images both work.
         radius: Radius of the blur disc in pixels; decimals are allowed.
         components: Number of kernel components, 1 to 6. More components give a rounder, cleaner disc
             and take longer. Values above 6 use 6.
@@ -142,7 +142,16 @@ def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = 5, exposur
 
     Returns:
         The blurred image as ``uint8``, with the same shape as ``img``.
+
+    Raises:
+        ValueError: if ``radius`` is not above 0.
     """
+    if radius <= 0:
+        raise ValueError(f'radius must be greater than 0, got {radius}.')
+    grayscale = img.ndim == 2
+    if grayscale:
+        img = img[:, :, np.newaxis]
+
     img = img / 255.
     # One contiguous float32 plane per channel.
     img = np.ascontiguousarray(img.transpose(2, 0, 1), dtype=np.float32)
@@ -176,4 +185,5 @@ def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = 5, exposur
     output_image = np.power(output_image, 1.0 / exposure_gamma)
     output_image = np.clip(output_image, 0, 1)
     output_image *= 255
-    return output_image.transpose(1, 2, 0).astype(np.uint8)
+    output_image = output_image.transpose(1, 2, 0).astype(np.uint8)
+    return output_image[:, :, 0] if grayscale else output_image

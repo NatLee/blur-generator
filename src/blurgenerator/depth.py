@@ -1,9 +1,10 @@
 """
 Blur an image by depth: a depth map decides how much each pixel is blurred.
 
-The depth map is a grayscale image the same size as the photo (a BGR image is converted to grayscale).
-Its range of values is split into ``num_layers`` layers. Every layer is blurred with its own strength,
-from ``min_blur`` for depth 0 to ``max_blur`` for depth 255, and the layers are put back together.
+The depth map is an 8-bit image the same size as the photo, either grayscale or BGR (converted to
+grayscale). Its range of values is split into ``num_layers`` layers. Every layer is blurred with its own
+strength, from ``min_blur`` for depth 0 to ``max_blur`` for depth 255, and the layers are put back together.
+A blur amount of 0 leaves the pixels sharp.
 """
 from typing import Callable, Iterator, List, Tuple
 
@@ -47,10 +48,13 @@ def get_blur_amount_and_l_mask(depth_map: np.ndarray, value: int, step: int, min
     it also covers ``depth == value``; otherwise pixels at the minimum depth belong to no layer.
     """
     mask = _layer_mask(_to_gray(depth_map), value, step, include_value)
-    l_mask = depth_map.copy()
-    l_mask[:, :, 0] = mask
-    l_mask[:, :, 1] = mask
-    l_mask[:, :, 2] = mask
+    if depth_map.ndim == 2 or depth_map.shape[2] == 1:
+        l_mask = cv2.merge([mask, mask, mask])
+    else:
+        l_mask = depth_map.copy()
+        l_mask[:, :, 0] = mask
+        l_mask[:, :, 1] = mask
+        l_mask[:, :, 2] = mask
     return _blur_amount(value, min_blur, max_blur), l_mask
 
 
@@ -104,7 +108,35 @@ def gaussian_blur_with_depth_map(img: np.ndarray, depth_map: np.ndarray, sigma: 
 # ----------------------------------------------------------------------------------------------------------
 
 def _to_gray(depth_map: np.ndarray) -> np.ndarray:
+    if depth_map.ndim == 2:
+        return depth_map
+    if depth_map.shape[2] == 1:
+        return depth_map[:, :, 0]
     return cv2.cvtColor(depth_map, cv2.COLOR_BGR2GRAY)
+
+
+def _check_inputs(img: np.ndarray, depth_map: np.ndarray, num_layers: int) -> None:
+    """Raise a clear error for inputs that would otherwise fail deep inside OpenCV."""
+    for name, value in (('img', img), ('depth_map', depth_map)):
+        if not isinstance(value, np.ndarray):
+            raise TypeError(
+                f'{name} must be an image (a numpy array, for example from cv2.imread), '
+                f'got {type(value).__name__}. cv2.imread returns None when it cannot read the file.'
+            )
+    if depth_map.dtype != np.uint8:
+        raise ValueError(
+            f'depth_map must be an 8-bit image (dtype uint8, values 0-255), got dtype {depth_map.dtype}.'
+        )
+    if depth_map.ndim not in (2, 3) or (depth_map.ndim == 3 and depth_map.shape[2] not in (1, 3, 4)):
+        raise ValueError(f'depth_map must be a grayscale or BGR image, got an array of shape {depth_map.shape}.')
+    if img.shape[:2] != depth_map.shape[:2]:
+        raise ValueError(
+            f'depth_map must be the same size as img: img is {img.shape[1]}x{img.shape[0]} pixels, '
+            f'depth_map is {depth_map.shape[1]}x{depth_map.shape[0]}. '
+            f'Resize it first, for example with cv2.resize(depth_map, ({img.shape[1]}, {img.shape[0]})).'
+        )
+    if num_layers < 1:
+        raise ValueError(f'num_layers must be at least 1, got {num_layers}.')
 
 
 def _blur_amount(value: int, min_blur: int, max_blur: int) -> int:
@@ -130,9 +162,12 @@ def _depth_layers(depth_map: np.ndarray, num_layers: int, min_blur: int,
 def _blur_by_depth(img: np.ndarray, depth_map: np.ndarray, blur: BlurFunction, num_layers: int, min_blur: int,
                    max_blur: int) -> np.ndarray:
     """Blur ``img`` once per depth layer and keep, from each result, only the pixels of that layer."""
+    _check_inputs(img, depth_map, num_layers)
     out = np.zeros(img.shape)
     for blur_amount, mask in _depth_layers(depth_map, num_layers, min_blur, max_blur):
-        blurred = blur(img, blur_amount)
+        # 0 means sharp. motion_blur and lens_blur cannot do a blur of size 0 (min_blur=0 used to crash);
+        # gaussian_blur of size 0 was already a plain copy.
+        blurred = img if blur_amount == 0 else blur(img, blur_amount)
         layer = cv2.bitwise_and(blurred, blurred, mask=mask)
         # dtype=0 (CV_8U): the result is an 8-bit image, as it has always been.
         out = cv2.add(out, layer, dtype=0)
