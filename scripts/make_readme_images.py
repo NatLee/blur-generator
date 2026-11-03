@@ -19,6 +19,7 @@ from blurgenerator import lens_blur_with_depth_map
 
 OUT_DIR = os.path.join('doc', 'readme')
 PHOTO = os.path.join('doc', 'depth-test.jpg')
+DEPTH_MAP = os.path.join('doc', 'depth-map-test.png')
 SAMPLE = os.path.join(OUT_DIR, 'sample.jpg')
 
 # README "Gallery": one command per blur type on doc/readme/sample.jpg.
@@ -89,7 +90,7 @@ def main():
     # The gallery sample: the pavilion and the sunlit floor, 900x600 pixels scaled down to 600x400.
     save_jpeg('sample.jpg', cv2.resize(photo[600:1200, 800:1700], (600, 400), interpolation=cv2.INTER_AREA))
     save_jpeg('depth-photo.jpg', photo, DISPLAY_WIDTH)
-    save_jpeg('depth-map.jpg', cv2.imread(os.path.join('doc', 'depth-map-test.png')), DISPLAY_WIDTH)
+    save_jpeg('depth-map.jpg', cv2.imread(DEPTH_MAP), DISPLAY_WIDTH)
 
     with tempfile.TemporaryDirectory() as tmp:
         for name, command in GALLERY.items():

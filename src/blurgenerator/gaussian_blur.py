@@ -4,8 +4,11 @@ Gaussian blur generator
 import cv2
 import numpy as np
 
+#: Standard deviation used when the caller does not choose one (the command line always uses it).
+DEFAULT_SIGMA = 5
 
-def gaussian_blur(img: np.ndarray, kernel: int, sigma: float = 5) -> np.ndarray:
+
+def gaussian_blur(img: np.ndarray, kernel: int, sigma: float = DEFAULT_SIGMA) -> np.ndarray:
     """Blur ``img`` with a Gaussian filter.
 
     Args:

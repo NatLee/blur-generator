@@ -43,15 +43,28 @@ class TestOptions(unittest.TestCase):
         }
         self.assertEqual(vars(parser.parse_args([])), expected)
 
-    def test_help_mentions_every_option_and_its_default(self):
+    def test_help_mentions_every_option(self):
         result = run_cli('--help')
         self.assertEqual(result.code, 0)
         help_text = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)  # drop colors (Python 3.14+)
         help_text = re.sub(r'\s+', ' ', help_text)
         for option in vars(build_parser().parse_args([])):
             self.assertIn('--' + option, help_text)
-        for default in ('`./result.png`', '`motion`', '100', '30', '5.0', '4', '2', '10', '1'):
-            self.assertIn('Default is ' + default + '.', help_text)
+
+    def test_help_states_the_real_default_of_each_option(self):
+        # 1.1.0's help gave --depth_num_layers a default it never had. Check every option, not just that one.
+        help_text = re.sub(r'\x1b\[[0-9;]*m', '', run_cli('--help').stdout)  # drop colors (Python 3.14+)
+        blocks = {match.group(1): ' '.join(match.group(2).split())
+                  for match in re.finditer(r'^  --(\w+)(.*?)(?=^  -|\Z)', help_text, re.MULTILINE | re.DOTALL)}
+        for option, default in vars(build_parser().parse_args([])).items():
+            with self.subTest(option=option):
+                stated = re.search(r'Default is (`[^`]*`|[^ .:]+(?:\.\d+)?)', blocks[option])
+                if default is None:
+                    # No default value: the help either says nothing or "off".
+                    self.assertIn(stated.group(1) if stated else 'off', ('off',))
+                else:
+                    self.assertIsNotNone(stated, blocks[option])
+                    self.assertEqual(stated.group(1).strip('`'), str(default))
 
     def test_package_main_is_the_cli(self):
         self.assertIs(blurgenerator.main, blurgenerator.cli.main)
