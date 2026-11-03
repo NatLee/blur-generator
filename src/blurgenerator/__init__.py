@@ -1,7 +1,7 @@
 """
 Blur Generator: add motion, lens or Gaussian blur to images, optionally driven by a depth map.
 """
-__version__ = "1.2.0"
+__version__ = "2.0.0"
 
 from .motion_blur import motion_blur
 from .lens_blur import lens_blur
