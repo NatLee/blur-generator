@@ -1,71 +1,70 @@
 """
 Lens blur generator
+
+Approximates the round "bokeh" blur of a camera lens with a sum of separable complex Gaussian kernels,
+following <http://yehar.com/blog/?p=1495> (circularly symmetric convolution and lens blur).
 """
-from typing import Tuple, Dict, List
-import os
 import math
+import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import reduce
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Tuple
 
 import cv2
 import numpy as np
 
-# These scales bring the size of the below components to roughly the specified radius - I just hard coded these
-kernel_scales = [1.4,1.2,1.2,1.2,1.2,1.2]
+# These scales bring the size of the components below to roughly the requested radius (hand-tuned).
+kernel_scales = [1.4, 1.2, 1.2, 1.2, 1.2, 1.2]
 
-# Kernel parameters a, b, A, B
-# These parameters are drawn from <http://yehar.com/blog/?p=1495>
+# Kernel parameters a, b, A, B for 1 to 6 components, from <http://yehar.com/blog/?p=1495>.
 kernel_params = [
-                # 1-component
-                [[0.862325, 1.624835, 0.767583, 1.862321]],
+    # 1 component
+    [[0.862325, 1.624835, 0.767583, 1.862321]],
 
-                # 2-components
-                [[0.886528, 5.268909, 0.411259, -0.548794],
-                [1.960518, 1.558213, 0.513282, 4.56111]],
+    # 2 components
+    [[0.886528, 5.268909, 0.411259, -0.548794],
+     [1.960518, 1.558213, 0.513282, 4.56111]],
 
-                # 3-components
-                [[2.17649, 5.043495, 1.621035, -2.105439],
-                [1.019306, 9.027613, -0.28086, -0.162882],
-                [2.81511, 1.597273, -0.366471, 10.300301]],
+    # 3 components
+    [[2.17649, 5.043495, 1.621035, -2.105439],
+     [1.019306, 9.027613, -0.28086, -0.162882],
+     [2.81511, 1.597273, -0.366471, 10.300301]],
 
-                # 4-components
-                [[4.338459, 1.553635, -5.767909, 46.164397],
-                [3.839993, 4.693183, 9.795391, -15.227561],
-                [2.791880, 8.178137, -3.048324, 0.302959],
-                [1.342190, 12.328289, 0.010001, 0.244650]],
+    # 4 components
+    [[4.338459, 1.553635, -5.767909, 46.164397],
+     [3.839993, 4.693183, 9.795391, -15.227561],
+     [2.791880, 8.178137, -3.048324, 0.302959],
+     [1.342190, 12.328289, 0.010001, 0.244650]],
 
-                # 5-components
-                [[4.892608, 1.685979, -22.356787, 85.91246],
-                [4.71187, 4.998496, 35.918936, -28.875618],
-                [4.052795, 8.244168, -13.212253, -1.578428],
-                [2.929212, 11.900859, 0.507991, 1.816328],
-                [1.512961, 16.116382, 0.138051, -0.01]],
+    # 5 components
+    [[4.892608, 1.685979, -22.356787, 85.91246],
+     [4.71187, 4.998496, 35.918936, -28.875618],
+     [4.052795, 8.244168, -13.212253, -1.578428],
+     [2.929212, 11.900859, 0.507991, 1.816328],
+     [1.512961, 16.116382, 0.138051, -0.01]],
 
-                # 6-components
-                [[5.143778, 2.079813, -82.326596, 111.231024],
-                [5.612426, 6.153387, 113.878661, 58.004879],
-                [5.982921, 9.802895, 39.479083, -162.028887],
-                [6.505167, 11.059237, -71.286026, 95.027069],
-                [3.869579, 14.81052, 1.405746, -3.704914],
-                [2.201904, 19.032909, -0.152784, -0.107988]]]
+    # 6 components
+    [[5.143778, 2.079813, -82.326596, 111.231024],
+     [5.612426, 6.153387, 113.878661, 58.004879],
+     [5.982921, 9.802895, 39.479083, -162.028887],
+     [6.505167, 11.059237, -71.286026, 95.027069],
+     [3.869579, 14.81052, 1.405746, -3.704914],
+     [2.201904, 19.032909, -0.152784, -0.107988]],
+]
 
-# Obtain specific parameters and scale for a given component count
+
 def get_parameters(component_count: int = 2) -> Tuple[List[Dict[str, float]], float]:
+    """Return the kernel parameters (``a``, ``b``, ``A``, ``B`` per component) and scale for a component count.
+
+    Counts outside 1-6 use the nearest preset: values above 6 use the 6-component kernel.
     """
-    Obtain specific parameters and scale for a given component count.
-    """
-    # Clamp to the available presets (1-6 components); values above 6 use the 6-component kernel.
     parameter_index = max(0, min(component_count - 1, len(kernel_params) - 1))
     parameter_dictionaries = [dict(zip(['a', 'b', 'A', 'B'], b)) for b in kernel_params[parameter_index]]
     return parameter_dictionaries, kernel_scales[parameter_index]
 
-# Produces a complex kernel of a given radius and scale (adjusts radius to be more accurate)
-# a and b are parameters of this complex kernel
+
 def complex_kernel_1d(radius: float, scale: float, a: float, b: float) -> np.ndarray:
-    """
-    Produces a complex kernel of a given radius and scale (adjusts radius to be more accurate).
-    """
+    """Build a 1D complex kernel of the given radius; ``scale`` corrects the radius, ``a`` and ``b`` shape it."""
     kernel_radius = int(math.ceil(radius))
     kernel_size = kernel_radius * 2 + 1
     ax = np.linspace(-radius, radius, kernel_size, dtype=np.float32)
@@ -77,9 +76,7 @@ def complex_kernel_1d(radius: float, scale: float, a: float, b: float) -> np.nda
 
 
 def normalise_kernels(kernels: List[np.ndarray], params: List[Dict[str, float]]) -> np.ndarray:
-    """
-    Normalises the kernels with respect to A*real + B*imag.
-    """
+    """Scale the kernels so that the combined 2D kernel (``A * real + B * imag``) sums to 1."""
     total = 0
 
     for k, p in zip(kernels, params):
@@ -93,106 +90,100 @@ def normalise_kernels(kernels: List[np.ndarray], params: List[Dict[str, float]])
 
     return kernels
 
+
 def weighted_sum(kernel: np.ndarray, params: Dict[str, float]) -> np.ndarray:
-    """
-    Combine the real and imaginary parts of an image, weighted by A and B.
-    """
+    """Combine the real and imaginary parts of a filtered image, weighted by ``A`` and ``B``."""
     return np.add(kernel.real * params['A'], kernel.imag * params['B'])
 
-# Produce a 2D kernel by self-multiplying a 1d kernel. This would be slower to use
-# than the separable approach, mostly for visualisation below
+
 def multiply_kernel(kernel: np.ndarray) -> np.ndarray:
-    """
-    Produce a 2D kernel by self-multiplying a 1D kernel.
-    """
+    """Turn a 1D kernel into the equivalent 2D kernel (slower than the separable filter; for inspection)."""
     kernel_size = kernel.shape[1]
     a = np.repeat(kernel, kernel_size, 0)
     b = np.repeat(kernel.transpose(), kernel_size, 1)
     return np.multiply(a, b)
 
-# ----------------------------------------------------------------
 
-def filter_task(idx: int, channel: int, img_channel: np.ndarray, component: np.ndarray, component_params: Dict[str, float]) -> Tuple[int, int, np.ndarray]:
-    """
-    Perform convolution with the complex kernel components on the image channel.
+def filter_task(idx: int, channel: int, img_channel: np.ndarray, component: np.ndarray,
+                component_params: Dict[str, float]) -> Tuple[int, int, np.ndarray]:
+    """Filter one image channel with one complex kernel component (rows, then columns).
+
+    For two complex signals f and g, f * g = Re(f)*Re(g) - Im(f)*Im(g) + i [Re(f)*Im(g) + Im(f)*Re(g)].
+    Returns ``(idx, channel, weighted_sum)`` so callers can tell the results apart.
     """
     component_real = np.real(component)
     component_imag = np.imag(component)
 
     component_real_t = component_real.transpose()
     component_imag_t = component_imag.transpose()
-    
+
     inter_real = cv2.filter2D(img_channel, -1, component_real, borderType=cv2.BORDER_REPLICATE)
     inter_imag = cv2.filter2D(img_channel, -1, component_imag, borderType=cv2.BORDER_REPLICATE)
-    
+
     final_1 = cv2.filter2D(inter_real, -1, component_real_t, borderType=cv2.BORDER_REPLICATE)
     final_2 = cv2.filter2D(inter_real, -1, component_imag_t, borderType=cv2.BORDER_REPLICATE)
     final_3 = cv2.filter2D(inter_imag, -1, component_real_t, borderType=cv2.BORDER_REPLICATE)
     final_4 = cv2.filter2D(inter_imag, -1, component_imag_t, borderType=cv2.BORDER_REPLICATE)
-    
+
     final = final_1 - final_4 + 1j * (final_2 + final_3)
-    weight_sum = weighted_sum(final, component_params)
-    
-    return idx, channel, weight_sum
+    return idx, channel, weighted_sum(final, component_params)
+
 
 def lens_blur(img: np.ndarray, radius: float = 3.0, components: int = 5, exposure_gamma: float = 5.0) -> np.ndarray:
-    """
-    Apply lens blur to the input image.
-    """
+    """Blur ``img`` like an out-of-focus camera lens: bright spots turn into round discs ("bokeh").
 
-    img = img/255.
+    Args:
+        img: 8-bit image to blur, for example from ``cv2.imread``. Grayscale and color images both work.
+        radius: Radius of the blur disc in pixels; decimals are allowed.
+        components: Number of kernel components, 1 to 6. More components give a rounder, cleaner disc
+            and take longer. Values above 6 use 6.
+        exposure_gamma: Brightens highlights before blurring and undoes it afterwards, so bright spots
+            bloom into visible discs. 1 turns this off.
 
-    img = np.ascontiguousarray(img.transpose(2,0,1), dtype=np.float32)
-    # Obtain component parameters / scale values
-    parameters, scale = get_parameters(component_count = components)
-    # Create each component for size radius, using scale and other component parameters
-    components = [complex_kernel_1d(radius, scale, component_params['a'], component_params['b']) for component_params in parameters]
-    # Normalise all kernels together (the combination of all applied kernels in 2D must sum to 1)
-    components = normalise_kernels(components, parameters)
-    # Increase exposure to highlight bright spots
+    Returns:
+        The blurred image as ``uint8``, with the same shape as ``img``.
+
+    Raises:
+        ValueError: if ``radius`` is not above 0.
+    """
+    if radius <= 0:
+        raise ValueError(f'radius must be greater than 0, got {radius}.')
+    grayscale = img.ndim == 2
+    if grayscale:
+        img = img[:, :, np.newaxis]
+
+    img = img / 255.
+    # One contiguous float32 plane per channel.
+    img = np.ascontiguousarray(img.transpose(2, 0, 1), dtype=np.float32)
+
+    parameters, scale = get_parameters(component_count=components)
+    kernels = [complex_kernel_1d(radius, scale, params['a'], params['b']) for params in parameters]
+    # The combination of all kernels applied in 2D must sum to 1.
+    kernels = normalise_kernels(kernels, parameters)
+
+    # Increase exposure to highlight bright spots.
     img = np.power(img, exposure_gamma)
 
-    # Process RGB channels for all components
-    # NOTE:
-    # Let f,g be two complex signals. The convolution f*g can be split as:
-    # Re(f)*Re(g) - Im(f)*Im(g) + i [Re(f)*Im(g) + Im(f)*Re(g)]
-    # where Re(), Im() represents the real and imaginary parts respectively
-
-    # Process RGB channels for all components
-    component_output = []
-
-    task_out = defaultdict(list)
-
+    # Filter every channel with every component in parallel, then stack the channels back in order and
+    # add the components up in order (the order matters for the exact floating point result).
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        tasks = []
-        for idx, (component, component_params) in enumerate(zip(components, parameters)):
-            for channel in range(img.shape[0]):
-                tasks.append(
-                    executor.submit(
-                        filter_task, idx, channel, img[channel], component, component_params
-                    )
-                )
-        for task in as_completed(tasks):
-            idx, channel, weight_sum = task.result()
-            task_out[idx].append((channel, weight_sum))
-
-    # sort out the output from thread pool & resort with original order
-    component_images = []
-    for idx, values in task_out.items():
-        component_image = np.stack([weight_sum for _, weight_sum in sorted(values, key=lambda x: x[0])])
-        component_images.append((idx, component_image))
-
-    # The final component output is a stack of RGB, with weighted sums of real and imaginary parts
-    component_output = [component_image for _, component_image in sorted(component_images, key=lambda x: x[0])]
-
-    # Add all components together
+        futures = [
+            [
+                executor.submit(filter_task, idx, channel, img[channel], kernel, params)
+                for channel in range(img.shape[0])
+            ]
+            for idx, (kernel, params) in enumerate(zip(kernels, parameters))
+        ]
+        component_output = [
+            np.stack([future.result()[2] for future in channel_futures])
+            for channel_futures in futures
+        ]
     output_image = reduce(np.add, component_output)
-    # Reverse exposure
+
+    # Reverse the exposure. Clip small negatives first: the complex kernels are not perfect.
     output_image = np.clip(output_image, 0, None)
-    output_image = np.power(output_image, 1.0/exposure_gamma)
-    # Avoid out of range values - generally this only occurs with small negatives
-    # due to imperfect complex kernels
+    output_image = np.power(output_image, 1.0 / exposure_gamma)
     output_image = np.clip(output_image, 0, 1)
     output_image *= 255
-    output_image = output_image.transpose(1,2,0).astype(np.uint8)
-    return output_image
+    output_image = output_image.transpose(1, 2, 0).astype(np.uint8)
+    return output_image[:, :, 0] if grayscale else output_image
