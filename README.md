@@ -24,15 +24,29 @@ Use it to make training data for blur detection or deblurring models (see
 pip install BlurGenerator
 ```
 
-It needs Python 3.7 or newer and installs OpenCV (`opencv-python`) and NumPy.
+It needs Python 3.7 or newer and installs NumPy and the headless build of OpenCV
+(`opencv-python-headless`). That is the same `cv2` without the windows of `cv2.imshow`, so it also works on
+servers and in slim Docker images (for example `python:3.12-slim`) without extra system libraries.
 
-On a server or in a slim Docker image (for example `python:3.12-slim`), `import cv2` can fail with
-`libxcb.so.1: cannot open shared object file` or `libGL.so.1: cannot open shared object file`. OpenCV needs
-a few system libraries there; on Debian or Ubuntu install them with:
+**Already have `opencv-python`?** Versions up to 1.2.0 installed it, and other packages may too. It and
+`opencv-python-headless` install the same `cv2` folder, so they get in each other's way: the one installed
+last wins, and uninstalling either one removes `cv2` for both. Keep only one of them:
 
 ```bash
-apt-get install -y libgl1 libglib2.0-0
+# You don't need cv2.imshow: keep the headless build.
+pip uninstall -y opencv-python opencv-python-headless
+pip install --force-reinstall BlurGenerator
+
+# You do need cv2.imshow: keep the full build, and install BlurGenerator without its OpenCV.
+pip uninstall -y opencv-python opencv-python-headless
+pip install opencv-python
+pip install --no-deps BlurGenerator
 ```
+
+BlurGenerator works with either build. With the second way, `pip check` reports that
+`opencv-python-headless` is missing; that is expected. The full build needs a few system libraries on a
+server or in a slim image (`libxcb.so.1` or `libGL.so.1` missing); on Debian or Ubuntu:
+`apt-get install -y libgl1 libglib2.0-0`.
 
 ## Quick start
 
