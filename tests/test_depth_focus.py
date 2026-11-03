@@ -13,7 +13,7 @@ from blurgenerator import (
     lens_blur_with_depth_map,
     gaussian_blur_with_depth_map,
 )
-from blurgenerator.depth import blur_with_depth, get_depth_step_and_layer, map_range
+from blurgenerator.depth import get_depth_step_and_layer, map_range
 
 from .helpers import TempDirTestCase, gradient_depth_map, random_image, run_cli
 
@@ -108,27 +108,14 @@ class TestWithoutFocusNothingChanges(unittest.TestCase):
 
 
 class TestDepthHelpers(unittest.TestCase):
-    """The helpers in blurgenerator.depth keep working for code that imported them."""
+    """The public helpers of blurgenerator.depth that the depth-map blurs are built from."""
 
-    def test_blur_with_depth_gives_the_old_layers(self):
-        depth = gradient_depth_map()
-        gray = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
-        step, layers = get_depth_step_and_layer(depth, 3)
-        self.assertEqual((step, layers.tolist()), (85, [0, 85, 170]))
-        result = blur_with_depth(depth, num_layers=3, min_blur=1, max_blur=9)
-        self.assertEqual([amount for amount, _ in result], [1, 3, 6])
-        for i, ((_, l_mask), value) in enumerate(zip(result, layers)):
-            inside = ((gray >= value) if i == 0 else (gray > value)) & (gray <= value + step)
-            self.assertEqual(l_mask.shape, depth.shape)
-            self.assertTrue(np.array_equal(l_mask, bgr(np.where(inside, 255, 0))))
-
-    def test_blur_with_depth_accepts_a_grayscale_depth_map(self):
-        depth = gradient_depth_map()
-        gray = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
-        for (amount, l_mask), (expected_amount, expected_mask) in zip(blur_with_depth(gray, 3, 1, 9),
-                                                                      blur_with_depth(depth, 3, 1, 9)):
-            self.assertEqual(amount, expected_amount)
-            self.assertTrue(np.array_equal(l_mask, expected_mask))
+    def test_get_depth_step_and_layer(self):
+        self.assertEqual(get_depth_step_and_layer(gradient_depth_map(), 3)[0], 85)
+        self.assertEqual(get_depth_step_and_layer(gradient_depth_map(), 3)[1].tolist(), [0, 85, 170])
+        # A flat depth map still gets one layer, of height 1.
+        step, layers = get_depth_step_and_layer(bgr(np.full((4, 4), 128)), 10)
+        self.assertEqual((step, layers.tolist()), (1, [128]))
 
     def test_map_range(self):
         self.assertEqual(map_range(0, 0, 255, 1, 100), 1)
