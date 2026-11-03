@@ -217,7 +217,8 @@ class TestCliErrors(TempDirTestCase, unittest.TestCase):
         # 1.1.0 wrote nothing and said nothing.
         img_path = self.write_image('img.png', random_image())
         result = run_cli('--type', 'gaussian', '--input', img_path, '--output', self.path('nope/out.png'))
-        self.assertIn('Could not write', result.stdout)
+        self.assertEqual(result.code, 1)
+        self.assertIn('Could not write', result.stderr)
 
     def test_output_with_an_unknown_extension_is_a_clear_error(self):
         # 1.1.0 crashed inside OpenCV with a traceback.

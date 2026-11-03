@@ -1,10 +1,9 @@
 """
 Command line interface: ``blurgenerator --type lens --input photo.jpg --output result.png``.
 
-Exit codes: the checks that print a ``-----`` message on stdout (missing input, wrong file type, unknown
-blur type, output not written) end with exit code 0, as they always have. Errors that used to end in a
-Python traceback (an unreadable image, an invalid blur setting) now print a message on stderr instead and
-still exit with code 1.
+Exit codes: 0 when the result was written, 1 when it could not be made (a file that is missing, not an
+image or not writable, or a blur setting the library rejects), 2 when the command line itself is wrong (no
+``--input``, an unknown ``--type``, or anything argparse rejects). Error messages go to stderr.
 """
 import argparse
 import sys
@@ -128,9 +127,15 @@ def _focus_options_given(parser: argparse.ArgumentParser, args: argparse.Namespa
     return any(getattr(args, option) != parser.get_default(option) for option in FOCUS_OPTIONS)
 
 
-def _abort(message: str) -> NoReturn:
-    """Print ``message`` on stderr and exit with code 1."""
-    sys.exit(f'----- {message}')
+#: Exit codes: the result could not be made / the command line is wrong (argparse uses 2 as well).
+EXIT_FAILURE = 1
+EXIT_USAGE = 2
+
+
+def _stop(message: str, code: int = EXIT_FAILURE) -> NoReturn:
+    """The one way the command stops on an error: ``message`` on stderr, then exit with ``code``."""
+    print(f'----- {message}', file=sys.stderr)
+    sys.exit(code)
 
 
 def _is_supported_image(path: Path) -> bool:
@@ -140,7 +145,7 @@ def _is_supported_image(path: Path) -> bool:
 def _read_image(path: Path, option: str) -> np.ndarray:
     image = cv2.imread(path.absolute().as_posix())
     if image is None:
-        _abort(f'Could not read `{path}` ({option}) as an image.')
+        _stop(f'Could not read `{path}` ({option}) as an image.')
     return image
 
 
@@ -148,9 +153,9 @@ def _write_image(path: str, image: np.ndarray) -> None:
     try:
         written = cv2.imwrite(path, image)
     except cv2.error:
-        _abort(f'Could not write `{path}`: the file name must end in an image extension such as .png or .jpg.')
+        _stop(f'Could not write `{path}`: the file name must end in an image extension such as .png or .jpg.')
     if not written:
-        print(f'----- Could not write `{path}`. Check that the folder exists.')
+        _stop(f'Could not write `{path}`. Check that the folder exists.')
 
 
 def _depth_blur(args: argparse.Namespace, img: np.ndarray, depth_map: np.ndarray) -> np.ndarray:
@@ -171,23 +176,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    # The command line first, then the files.
     if not args.input:
-        print('----- Please specify an input image with `--input`.')
-        return
+        _stop('Please specify an input image with `--input`.', EXIT_USAGE)
+    if args.type not in BLURS:
+        _stop(f'Unknown blur type `{args.type}`. Use {_listing(_quoted(BLUR_TYPES), "or")}.', EXIT_USAGE)
 
     img_path = Path(args.input)
-
     if not img_path.is_file():
-        print(f'----- `{args.input}` is not a file.')
-        return
-
+        _stop(f'`{args.input}` is not a file.')
     if not _is_supported_image(img_path):
-        print(f'----- Only {_listing(IMAGE_SUFFIXES, "and")} images are supported.')
-        return
-
-    if args.type not in BLURS:
-        print(f'----- Unknown blur type `{args.type}`. Use {_listing(_quoted(BLUR_TYPES), "or")}.')
-        return
+        _stop(f'Only {_listing(IMAGE_SUFFIXES, "and")} images are supported.')
 
     img = _read_image(img_path, '--input')
 
@@ -198,17 +197,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         try:
             result = BLURS[args.type].plain(args, img)
         except ValueError as error:
-            _abort(str(error))
+            _stop(str(error))
         _write_image(args.output, result)
         return
 
     depth_map_path = Path(args.input_depth_map)
     if not depth_map_path.is_file():
-        print(f'----- `{args.input_depth_map}` (--input_depth_map) is not a file.')
-        return
+        _stop(f'`{args.input_depth_map}` (--input_depth_map) is not a file.')
     if not _is_supported_image(depth_map_path):
-        print(f'----- Only {_listing(IMAGE_SUFFIXES, "and")} images are supported.')
-        return
+        _stop(f'Only {_listing(IMAGE_SUFFIXES, "and")} images are supported.')
 
     print(f'----- Generating `{args.type}` blur with depth map.')
     for blur in BLURS.values():
@@ -218,5 +215,5 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     try:
         result = _depth_blur(args, img, depth_map)
     except ValueError as error:
-        _abort(str(error))
+        _stop(str(error))
     _write_image(args.output, result)

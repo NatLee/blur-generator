@@ -68,10 +68,16 @@ def get_parameters(component_count: int = 2) -> Tuple[List[Dict[str, float]], fl
 
 
 def complex_kernel_1d(radius: float, scale: float, a: float, b: float) -> np.ndarray:
-    """Build a 1D complex kernel of the given radius; ``scale`` corrects the radius, ``a`` and ``b`` shape it."""
+    """Build a 1D complex kernel of the given radius; ``scale`` corrects the radius, ``a`` and ``b`` shape it.
+
+    The kernel is sampled at whole-pixel offsets from the centre, out to ``ceil(radius)``, and each offset is
+    measured in units of ``radius``. So a decimal radius gives a kernel between the two whole ones around it.
+    (Up to 1.2.0 the samples were spread evenly over ``[-radius, radius]`` instead, which made 2.5 the same
+    as 3. For whole radii both ways give exactly the same samples.)
+    """
     kernel_radius = int(math.ceil(radius))
     kernel_size = kernel_radius * 2 + 1
-    ax = np.linspace(-radius, radius, kernel_size, dtype=np.float32)
+    ax = np.arange(-kernel_radius, kernel_radius + 1, dtype=np.float32)
     ax = ax * scale * (1 / radius)
     kernel_complex = np.zeros((kernel_size,), dtype=np.complex64)
     kernel_complex.real = np.exp(-a * (ax**2)) * np.cos(b * (ax**2))

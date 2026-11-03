@@ -15,7 +15,7 @@ import tempfile
 import cv2
 import numpy as np
 
-from blurgenerator import lens_blur_with_depth_map
+from blurgenerator import lens_blur, lens_blur_with_depth_map
 
 OUT_DIR = os.path.join('doc', 'readme')
 PHOTO = os.path.join('doc', 'depth-test.jpg')
@@ -47,6 +47,12 @@ DEPTH = {
 }
 
 DISPLAY_WIDTH = 512
+
+# README "Decimal lens radii": one warm light through lens_blur() with its defaults at these radii,
+# enlarged LENS_ZOOM times without smoothing so that every pixel shows.
+LENS_RADII = (2, 2.5, 3)
+LENS_ZOOM = 10
+LENS_LIGHT_BGR = (140, 215, 255)
 
 
 def save_jpeg(name, img, width=None):
@@ -83,6 +89,18 @@ def checkerboard_strips():
         print(f'{path:36s} {width}x{height}  {os.path.getsize(path) // 1024} KB')
 
 
+def lens_radius_discs():
+    """One bright pixel blurred with each radius in LENS_RADII: the disc grows with the radius."""
+    light = np.zeros((15, 15, 3), dtype=np.uint8)
+    light[7, 7] = LENS_LIGHT_BGR
+    for radius in LENS_RADII:
+        disc = cv2.resize(lens_blur(light, radius=radius), None, fx=LENS_ZOOM, fy=LENS_ZOOM,
+                          interpolation=cv2.INTER_NEAREST)
+        path = os.path.join(OUT_DIR, f'lens-radius-{radius}.png')
+        assert cv2.imwrite(path, disc, [cv2.IMWRITE_PNG_COMPRESSION, 9]), path
+        print(f'{path:36s} {disc.shape[1]}x{disc.shape[0]}  {os.path.getsize(path) // 1024} KB')
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     photo = cv2.imread(PHOTO)
@@ -99,6 +117,7 @@ def main():
             save_jpeg(name, run(command, tmp), DISPLAY_WIDTH)
 
     checkerboard_strips()
+    lens_radius_discs()
 
 
 if __name__ == '__main__':
