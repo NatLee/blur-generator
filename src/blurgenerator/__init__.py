@@ -1,5 +1,5 @@
 """
-Blur maker init
+Blur Generator: add motion, lens or Gaussian blur to images, optionally driven by a depth map.
 """
 __version__ = "1.1.0"
 
@@ -12,3 +12,13 @@ from .depth import lens_blur_with_depth_map
 from .depth import gaussian_blur_with_depth_map
 
 from .cli import main
+
+__all__ = [
+    'motion_blur',
+    'lens_blur',
+    'gaussian_blur',
+    'motion_blur_with_depth_map',
+    'lens_blur_with_depth_map',
+    'gaussian_blur_with_depth_map',
+    'main',
+]
