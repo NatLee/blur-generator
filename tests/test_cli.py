@@ -71,15 +71,23 @@ class TestOptions(unittest.TestCase):
 
 
 class TestInputChecks(TempDirTestCase, unittest.TestCase):
-    """The checks that print a message and stop without writing anything (exit code 0, as always)."""
+    """The checks that stop before blurring: the message goes to stderr, nothing is written, and the exit code
+    is 2 for a wrong command line or 1 for a file that cannot be used (the user's rule since 2026-11-04)."""
 
-    def assert_stops(self, result, message):
-        self.assertEqual(result.code, 0)
-        self.assertIn(message, result.stdout)
+    def assert_stops(self, result, message, code=1):
+        self.assertEqual(result.code, code)
+        self.assertIn(message, result.stderr)
+        self.assertEqual(result.stdout, '')
         self.assertFalse(os.path.exists(self.path('out.png')))
 
     def test_no_input(self):
-        self.assert_stops(run_cli('--output', self.path('out.png')), 'Please specify an input image with `--input`')
+        self.assert_stops(run_cli('--output', self.path('out.png')), 'Please specify an input image with `--input`',
+                          code=2)
+
+    def test_options_argparse_rejects_are_usage_errors_too(self):
+        result = run_cli('--input', 'x.png', '--motion_blur_size', 'big')
+        self.assertEqual(result.code, 2)
+        self.assertIn("invalid int value: 'big'", result.stderr)
 
     def test_input_is_not_a_file(self):
         self.assert_stops(run_cli('--input', self.path('missing.png'), '--output', self.path('out.png')),
@@ -96,7 +104,7 @@ class TestInputChecks(TempDirTestCase, unittest.TestCase):
     def test_unknown_blur_type(self):
         img_path = self.write_image('img.png', random_image())
         self.assert_stops(run_cli('--input', img_path, '--type', 'blurry', '--output', self.path('out.png')),
-                          'Unknown blur type `blurry`')
+                          'Unknown blur type `blurry`', code=2)
 
     def test_depth_map_is_not_a_file(self):
         img_path = self.write_image('img.png', random_image())

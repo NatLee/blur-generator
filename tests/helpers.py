@@ -37,12 +37,7 @@ def run_cli(*args):
         try:
             cli_main([str(arg) for arg in args])
         except SystemExit as exc:
-            if isinstance(exc.code, str):
-                # sys.exit('message') prints the message on stderr and exits with 1.
-                err.write(exc.code + '\n')
-                code = 1
-            else:
-                code = exc.code or 0
+            code = exc.code or 0
     return CliResult(code, out.getvalue(), err.getvalue())
 
 

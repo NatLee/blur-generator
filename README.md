@@ -249,9 +249,10 @@ options:
   `--lens_radius` and `--gaussian_kernel` are ignored, because the depth map decides the strength.
 - `--gaussian_kernel` always uses sigma 5, so values above about 31 look the same. The Python function
   takes a `sigma` argument.
-- When a check fails (no `--input`, a missing file, an unsupported file type or blur type), the command
-  prints a line starting with `-----` and exits with code 0. If you call it from a script, check that the
-  output file exists. Invalid settings, such as `--depth_focus 300`, exit with code 1.
+- The exit code tells a script what happened: 0 when the result was written, 1 when it could not be made
+  (a missing or unreadable file, an unsupported file type, a setting such as `--depth_focus 300`, an output
+  folder that does not exist), 2 when the command line itself is wrong (no `--input`, an unknown `--type`).
+  Errors are printed on stderr, on a line starting with `-----`.
 
 ## Python API
 
