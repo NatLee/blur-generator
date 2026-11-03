@@ -1,3 +1,4 @@
 #!/bin/bash
-pip uninstall -y blurgenerator
-python setup.py clean --all install clean --all
+# Reinstall the package from this folder (for local debugging).
+python -m pip uninstall -y blurgenerator
+python -m pip install .

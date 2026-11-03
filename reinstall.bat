@@ -1,1 +1,2 @@
-python setup.py clean --all install clean --all
+python -m pip uninstall -y blurgenerator
+python -m pip install .

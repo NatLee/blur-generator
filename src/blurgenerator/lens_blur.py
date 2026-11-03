@@ -55,7 +55,8 @@ def get_parameters(component_count: int = 2) -> Tuple[List[Dict[str, float]], fl
     """
     Obtain specific parameters and scale for a given component count.
     """
-    parameter_index = max(0, min(component_count - 1, len(kernel_params)))
+    # Clamp to the available presets (1-6 components); values above 6 use the 6-component kernel.
+    parameter_index = max(0, min(component_count - 1, len(kernel_params) - 1))
     parameter_dictionaries = [dict(zip(['a', 'b', 'A', 'B'], b)) for b in kernel_params[parameter_index]]
     return parameter_dictionaries, kernel_scales[parameter_index]
 
