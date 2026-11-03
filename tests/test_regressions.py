@@ -105,6 +105,10 @@ class TestDepthMapInputs(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, r'img is 40x40 pixels, depth_map is 30x20'):
                     fn(self.img, depth)
 
+    def test_depth_map_must_be_an_image(self):
+        with self.assertRaisesRegex(ValueError, r'grayscale or BGR image, got an array of shape \(40, 40, 2\)'):
+            gaussian_blur_with_depth_map(self.img, self.depth[:, :, :2])
+
     def test_depth_map_must_be_8_bit(self):
         with self.assertRaisesRegex(ValueError, r'8-bit .* got dtype uint16'):
             gaussian_blur_with_depth_map(self.img, self.depth.astype(np.uint16))
