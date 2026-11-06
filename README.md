@@ -1,5 +1,7 @@
 # Blur Generator
 
+![Blur Generator — original, motion, lens and Gaussian examples](doc/readme/cover.png)
+
 [![PyPI version](https://img.shields.io/pypi/v/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
 [![Python versions](https://img.shields.io/pypi/pyversions/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
 [![Test](https://github.com/NatLee/blur-generator/actions/workflows/test.yml/badge.svg)](https://github.com/NatLee/blur-generator/actions/workflows/test.yml)
@@ -450,6 +452,9 @@ GitHub Actions runs them on Python 3.7 to 3.14 on Linux, and on Python 3.14 on W
 
 The pictures in this README are real output of the tool. To make them again after a change, run
 `python scripts/make_readme_images.py` from the root of the repository.
+
+The [cover source](doc/readme/cover.svg) combines those existing examples with editable typography.
+See the [source and export notes](doc/readme/cover-source.md) to update the cover.
 
 ## Contributor
 
