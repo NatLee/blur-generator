@@ -1,6 +1,6 @@
 # Blur Generator
 
-![Blur Generator — original, motion, lens and Gaussian examples](doc/readme/cover.png)
+![Blur Generator — original, motion, lens and Gaussian examples](docs/images/readme/cover.png)
 
 [![PyPI version](https://img.shields.io/pypi/v/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
 [![Python versions](https://img.shields.io/pypi/pyversions/BlurGenerator.svg)](https://pypi.org/project/BlurGenerator/)
@@ -16,9 +16,9 @@ Use it to make training data for blur detection or deblurring models (see
 
 | Original | Motion |
 |:---:|:---:|
-| ![original photo](doc/readme/sample.jpg) | ![motion blur](doc/readme/gallery-motion.jpg) |
+| ![original photo](docs/images/readme/sample.jpg) | ![motion blur](docs/images/readme/gallery-motion.jpg) |
 | **Lens** | **Gaussian** |
-| ![lens blur](doc/readme/gallery-lens.jpg) | ![gaussian blur](doc/readme/gallery-gaussian.jpg) |
+| ![lens blur](docs/images/readme/gallery-lens.jpg) | ![gaussian blur](docs/images/readme/gallery-gaussian.jpg) |
 
 ## Installation
 
@@ -52,13 +52,13 @@ server or in a slim image (`libxcb.so.1` or `libGL.so.1` missing); on Debian or 
 
 ## Quick start
 
-The examples use the sample images in [`doc/`](doc/).
+The examples use the sample images in [`docs/images/`](docs/images/).
 Run them from the root of a clone of this repository, or point them at your own images.
 
 From the command line:
 
 ```bash
-blurgenerator --type lens --input ./doc/readme/sample.jpg --output lens.jpg
+blurgenerator --type lens --input ./docs/images/readme/sample.jpg --output lens.jpg
 ```
 
 From Python:
@@ -67,7 +67,7 @@ From Python:
 import cv2
 from blurgenerator import lens_blur
 
-img = cv2.imread('./doc/readme/sample.jpg')
+img = cv2.imread('./docs/images/readme/sample.jpg')
 result = lens_blur(img, radius=5, components=4, exposure_gamma=2)
 cv2.imwrite('./lens.jpg', result)
 ```
@@ -79,9 +79,9 @@ Both write the same picture: the Python call spells out the defaults the command
 The pictures at the top were made with these commands:
 
 ```bash
-blurgenerator --type motion --motion_blur_size 25 --input ./doc/readme/sample.jpg --output motion.jpg
-blurgenerator --type lens --lens_radius 8 --lens_exposure_gamma 5 --input ./doc/readme/sample.jpg --output lens.jpg
-blurgenerator --type gaussian --gaussian_kernel 31 --input ./doc/readme/sample.jpg --output gaussian.jpg
+blurgenerator --type motion --motion_blur_size 25 --input ./docs/images/readme/sample.jpg --output motion.jpg
+blurgenerator --type lens --lens_radius 8 --lens_exposure_gamma 5 --input ./docs/images/readme/sample.jpg --output lens.jpg
+blurgenerator --type gaussian --gaussian_kernel 31 --input ./docs/images/readme/sample.jpg --output gaussian.jpg
 ```
 
 The same in Python:
@@ -90,7 +90,7 @@ The same in Python:
 import cv2
 from blurgenerator import motion_blur, lens_blur, gaussian_blur
 
-img = cv2.imread('./doc/readme/sample.jpg')
+img = cv2.imread('./docs/images/readme/sample.jpg')
 cv2.imwrite('./motion.jpg', motion_blur(img, size=25, angle=30))
 cv2.imwrite('./lens.jpg', lens_blur(img, radius=8, components=4, exposure_gamma=5))
 cv2.imwrite('./gaussian.jpg', gaussian_blur(img, 31))
@@ -111,7 +111,7 @@ A decimal `radius` gives a disc between the two whole sizes around it. Here one 
 
 | `radius=2` | `radius=2.5` | `radius=3` |
 |:---:|:---:|:---:|
-| ![a small disc](doc/readme/lens-radius-2.png) | ![a medium disc](doc/readme/lens-radius-2.5.png) | ![a larger, rounder disc](doc/readme/lens-radius-3.png) |
+| ![a small disc](docs/images/readme/lens-radius-2.png) | ![a medium disc](docs/images/readme/lens-radius-2.5.png) | ![a larger, rounder disc](docs/images/readme/lens-radius-3.png) |
 
 Up to 1.2.0 a decimal radius blurred exactly like the next whole number: 2.5 gave the picture of 3.
 Whole radii give exactly the same result as before.
@@ -126,27 +126,27 @@ values into layers (`num_layers`) and blurs each layer by its own amount, from `
 
 | Photo | Depth map (brighter is nearer) |
 |:---:|:---:|
-| ![photo of a cave](doc/readme/depth-photo.jpg) | ![depth map](doc/readme/depth-map.jpg) |
+| ![photo of a cave](docs/images/readme/depth-photo.jpg) | ![depth map](docs/images/readme/depth-map.jpg) |
 
 In this depth map nearer things are brighter, so the blur grows towards the camera: the rocks in front get
 blurry and the far end of the cave stays sharp.
 
 | Motion | Lens | Gaussian |
 |:---:|:---:|:---:|
-| ![motion blur with depth map](doc/readme/depth-motion.jpg) | ![lens blur with depth map](doc/readme/depth-lens.jpg) | ![gaussian blur with depth map](doc/readme/depth-gaussian.jpg) |
+| ![motion blur with depth map](docs/images/readme/depth-motion.jpg) | ![lens blur with depth map](docs/images/readme/depth-lens.jpg) | ![gaussian blur with depth map](docs/images/readme/depth-gaussian.jpg) |
 
 ```bash
-blurgenerator --type motion --input ./doc/depth-test.jpg --input_depth_map ./doc/depth-map-test.png --depth_max_blur 50 --output depth-motion.png
-blurgenerator --type lens --input ./doc/depth-test.jpg --input_depth_map ./doc/depth-map-test.png --depth_max_blur 40 --output depth-lens.png
-blurgenerator --type gaussian --input ./doc/depth-test.jpg --input_depth_map ./doc/depth-map-test.png --depth_max_blur 50 --output depth-gaussian.png
+blurgenerator --type motion --input ./docs/images/depth-test.jpg --input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 50 --output depth-motion.png
+blurgenerator --type lens --input ./docs/images/depth-test.jpg --input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 40 --output depth-lens.png
+blurgenerator --type gaussian --input ./docs/images/depth-test.jpg --input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 50 --output depth-gaussian.png
 ```
 
 ```python
 import cv2
 from blurgenerator import lens_blur_with_depth_map
 
-img = cv2.imread('./doc/depth-test.jpg')
-depth_map = cv2.imread('./doc/depth-map-test.png')
+img = cv2.imread('./docs/images/depth-test.jpg')
+depth_map = cv2.imread('./docs/images/depth-map-test.png')
 result = lens_blur_with_depth_map(img, depth_map, components=4, exposure_gamma=2, max_blur=40)
 cv2.imwrite('./depth-lens.png', result)
 ```
@@ -164,21 +164,21 @@ This answers [issue #5](https://github.com/NatLee/blur-generator/issues/5).
 
 | Default: blur grows with depth | `focus_point=(480, 1150), focus_range=20` |
 |:---:|:---:|
-| ![lens blur without focus: the rocks in front are blurred](doc/readme/depth-lens.jpg) | ![lens blur focused on the rocks: the rocks are sharp, the cave behind them and the floor in front are blurred](doc/readme/focus-rocks.jpg) |
+| ![lens blur without focus: the rocks in front are blurred](docs/images/readme/depth-lens.jpg) | ![lens blur focused on the rocks: the rocks are sharp, the cave behind them and the floor in front are blurred](docs/images/readme/focus-rocks.jpg) |
 
 On the right the pile of rocks (depth 179 at pixel 480, 1150) is sharp. The cave behind it and the floor
 and ceiling in front of it are blurred, more the further their depth is from 179.
 
 ```bash
-blurgenerator --type lens --input ./doc/depth-test.jpg --input_depth_map ./doc/depth-map-test.png --depth_max_blur 40 --depth_focus_point 480 1150 --depth_focus_range 20 --output focus.png
+blurgenerator --type lens --input ./docs/images/depth-test.jpg --input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 40 --depth_focus_point 480 1150 --depth_focus_range 20 --output focus.png
 ```
 
 ```python
 import cv2
 from blurgenerator import lens_blur_with_depth_map
 
-img = cv2.imread('./doc/depth-test.jpg')
-depth_map = cv2.imread('./doc/depth-map-test.png')
+img = cv2.imread('./docs/images/depth-test.jpg')
+depth_map = cv2.imread('./docs/images/depth-map-test.png')
 result = lens_blur_with_depth_map(img, depth_map, components=4, exposure_gamma=2, max_blur=40,
                                   focus_point=(480, 1150), focus_range=20)
 # Same as focus=179, the depth of that pixel.
@@ -190,9 +190,9 @@ the right:
 
 | | Depth 0 on the left, 255 on the right |
 |---|:---:|
-| Depth map | ![depth gradient](doc/readme/strip-depth.png) |
-| Default | ![blur grows from left to right](doc/readme/strip-default.png) |
-| `focus=128, focus_range=40` | ![sharp in the middle, blurred towards both ends](doc/readme/strip-focus.png) |
+| Depth map | ![depth gradient](docs/images/readme/strip-depth.png) |
+| Default | ![blur grows from left to right](docs/images/readme/strip-default.png) |
+| `focus=128, focus_range=40` | ![sharp in the middle, blurred towards both ends](docs/images/readme/strip-focus.png) |
 
 The rules with a focus:
 
@@ -453,8 +453,8 @@ GitHub Actions runs them on Python 3.7 to 3.14 on Linux, and on Python 3.14 on W
 The pictures in this README are real output of the tool. To make them again after a change, run
 `python scripts/make_readme_images.py` from the root of the repository.
 
-The [cover source](doc/readme/cover.svg) combines those existing examples with editable typography.
-See the [source and export notes](doc/readme/cover-source.md) to update the cover.
+The [cover source](docs/images/readme/cover.svg) combines those existing examples with editable typography.
+See the [source and export notes](docs/images/readme/cover-source.md) to update the cover.
 
 ## Contributor
 

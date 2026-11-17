@@ -1,11 +1,11 @@
-"""Regenerate the images in doc/readme/ that the README shows.
+"""Regenerate the images in docs/images/readme/ that the README shows.
 
 Run it from the root of the repository after installing the package (``pip install -e .``):
 
     python scripts/make_readme_images.py
 
 Every picture is real output of blurgenerator. The commands below are the ones printed in the README;
-they run on the sample images in doc/ and the results are resized and saved as small JPEGs for the page.
+they run on the sample images in docs/images/ and the results are resized and saved as small JPEGs for the page.
 """
 import os
 import shlex
@@ -17,32 +17,34 @@ import numpy as np
 
 from blurgenerator import lens_blur, lens_blur_with_depth_map
 
-OUT_DIR = os.path.join('doc', 'readme')
-PHOTO = os.path.join('doc', 'depth-test.jpg')
-DEPTH_MAP = os.path.join('doc', 'depth-map-test.png')
+#: Every picture of the repository lives here; the README's own ones in readme/.
+IMAGES_DIR = os.path.join('docs', 'images')
+OUT_DIR = os.path.join(IMAGES_DIR, 'readme')
+PHOTO = os.path.join(IMAGES_DIR, 'depth-test.jpg')
+DEPTH_MAP = os.path.join(IMAGES_DIR, 'depth-map-test.png')
 SAMPLE = os.path.join(OUT_DIR, 'sample.jpg')
 
-# README "Gallery": one command per blur type on doc/readme/sample.jpg.
+# README "Gallery": one command per blur type on docs/images/readme/sample.jpg.
 GALLERY = {
     'gallery-motion.jpg': 'blurgenerator --type motion --motion_blur_size 25 '
-                          '--input ./doc/readme/sample.jpg --output motion.jpg',
+                          '--input ./docs/images/readme/sample.jpg --output motion.jpg',
     'gallery-lens.jpg': 'blurgenerator --type lens --lens_radius 8 --lens_exposure_gamma 5 '
-                        '--input ./doc/readme/sample.jpg --output lens.jpg',
+                        '--input ./docs/images/readme/sample.jpg --output lens.jpg',
     'gallery-gaussian.jpg': 'blurgenerator --type gaussian --gaussian_kernel 31 '
-                            '--input ./doc/readme/sample.jpg --output gaussian.jpg',
+                            '--input ./docs/images/readme/sample.jpg --output gaussian.jpg',
 }
 
-# README "Blur by depth" and "Focus on a depth": the full-size photo and depth map in doc/.
+# README "Blur by depth" and "Focus on a depth": the full-size photo and depth map in docs/images/.
 DEPTH = {
-    'depth-motion.jpg': 'blurgenerator --type motion --input ./doc/depth-test.jpg '
-                        '--input_depth_map ./doc/depth-map-test.png --depth_max_blur 50 --output depth-motion.png',
-    'depth-lens.jpg': 'blurgenerator --type lens --input ./doc/depth-test.jpg '
-                      '--input_depth_map ./doc/depth-map-test.png --depth_max_blur 40 --output depth-lens.png',
-    'depth-gaussian.jpg': 'blurgenerator --type gaussian --input ./doc/depth-test.jpg '
-                          '--input_depth_map ./doc/depth-map-test.png --depth_max_blur 50 '
+    'depth-motion.jpg': 'blurgenerator --type motion --input ./docs/images/depth-test.jpg '
+                        '--input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 50 --output depth-motion.png',
+    'depth-lens.jpg': 'blurgenerator --type lens --input ./docs/images/depth-test.jpg '
+                      '--input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 40 --output depth-lens.png',
+    'depth-gaussian.jpg': 'blurgenerator --type gaussian --input ./docs/images/depth-test.jpg '
+                          '--input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 50 '
                           '--output depth-gaussian.png',
-    'focus-rocks.jpg': 'blurgenerator --type lens --input ./doc/depth-test.jpg '
-                       '--input_depth_map ./doc/depth-map-test.png --depth_max_blur 40 '
+    'focus-rocks.jpg': 'blurgenerator --type lens --input ./docs/images/depth-test.jpg '
+                       '--input_depth_map ./docs/images/depth-map-test.png --depth_max_blur 40 '
                        '--depth_focus_point 480 1150 --depth_focus_range 20 --output focus.png',
 }
 
@@ -61,7 +63,7 @@ def save_jpeg(name, img, width=None):
         img = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
     path = os.path.join(OUT_DIR, name)
     assert cv2.imwrite(path, img, [cv2.IMWRITE_JPEG_QUALITY, 85]), path
-    print(f'{path:36s} {img.shape[1]}x{img.shape[0]}  {os.path.getsize(path) // 1024} KB')
+    print(f'{path:40s} {img.shape[1]}x{img.shape[0]}  {os.path.getsize(path) // 1024} KB')
 
 
 def run(command, tmp):
@@ -86,7 +88,7 @@ def checkerboard_strips():
     for name, strip in (('strip-depth.png', depth), ('strip-default.png', default), ('strip-focus.png', focused)):
         path = os.path.join(OUT_DIR, name)
         assert cv2.imwrite(path, strip, [cv2.IMWRITE_PNG_COMPRESSION, 9]), path
-        print(f'{path:36s} {width}x{height}  {os.path.getsize(path) // 1024} KB')
+        print(f'{path:40s} {width}x{height}  {os.path.getsize(path) // 1024} KB')
 
 
 def lens_radius_discs():
@@ -98,7 +100,7 @@ def lens_radius_discs():
                           interpolation=cv2.INTER_NEAREST)
         path = os.path.join(OUT_DIR, f'lens-radius-{radius}.png')
         assert cv2.imwrite(path, disc, [cv2.IMWRITE_PNG_COMPRESSION, 9]), path
-        print(f'{path:36s} {disc.shape[1]}x{disc.shape[0]}  {os.path.getsize(path) // 1024} KB')
+        print(f'{path:40s} {disc.shape[1]}x{disc.shape[0]}  {os.path.getsize(path) // 1024} KB')
 
 
 def main():

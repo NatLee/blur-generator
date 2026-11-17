@@ -5,6 +5,6 @@ include *.bat
 include LICENSE
 recursive-include tests *.py
 recursive-include scripts *.py
-recursive-include doc *.png
-recursive-include doc *.jpg
-recursive-include doc *.svg *.md
+recursive-include docs/images *.png
+recursive-include docs/images *.jpg
+recursive-include docs/images *.svg *.md
