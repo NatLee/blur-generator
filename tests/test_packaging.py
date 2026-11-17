@@ -17,16 +17,16 @@ PAGE = 'https://github.com/NatLee/blur-generator/blob/v9.9.9/'
 class TestReadmeLinks(unittest.TestCase):
 
     def test_embedded_images_point_at_the_file_in_the_release_tag(self):
-        readme = ('| ![photo](doc/readme/sample.jpg) | ![blur](doc/readme/gallery-lens.jpg) |\n'
-                  '<img src="doc/readme/strip-depth.png"> <source srcset="doc/a.png">\n')
+        readme = ('| ![photo](docs/images/readme/sample.jpg) | ![blur](docs/images/readme/gallery-lens.jpg) |\n'
+                  '<img src="docs/images/readme/strip-depth.png"> <source srcset="docs/images/a.png">\n')
         self.assertEqual(absolute_links(readme, 'v9.9.9'), (
-            '| ![photo](' + RAW + 'doc/readme/sample.jpg) | ![blur](' + RAW + 'doc/readme/gallery-lens.jpg) |\n'
-            '<img src="' + RAW + 'doc/readme/strip-depth.png"> <source srcset="' + RAW + 'doc/a.png">\n'))
+            '| ![photo](' + RAW + 'docs/images/readme/sample.jpg) | ![blur](' + RAW + 'docs/images/readme/gallery-lens.jpg) |\n'
+            '<img src="' + RAW + 'docs/images/readme/strip-depth.png"> <source srcset="' + RAW + 'docs/images/a.png">\n'))
 
     def test_links_point_at_the_github_page_in_the_release_tag(self):
-        readme = 'The images are in [`doc/`](doc/). [MIT](LICENSE) <a href="scripts/x.py">x</a>'
+        readme = 'The images are in [`docs/images/`](docs/images/). [MIT](LICENSE) <a href="scripts/x.py">x</a>'
         self.assertEqual(absolute_links(readme, 'v9.9.9'), (
-            'The images are in [`doc/`](' + PAGE + 'doc/). [MIT](' + PAGE + 'LICENSE) '
+            'The images are in [`docs/images/`](' + PAGE + 'docs/images/). [MIT](' + PAGE + 'LICENSE) '
             '<a href="' + PAGE + 'scripts/x.py">x</a>'))
 
     def test_a_link_around_an_image_is_rewritten_too(self):
@@ -37,13 +37,13 @@ class TestReadmeLinks(unittest.TestCase):
     def test_absolute_links_and_anchors_are_left_alone(self):
         readme = ('[issue #5](https://github.com/NatLee/blur-generator/issues/5) [up](#installation) '
                   '<img src="https://avatars.githubusercontent.com/u/1"> [mail](mailto:a@b.c) '
-                  '<a href="/NatLee">x</a> `cv2.imread(\'./doc/test.png\')`')
+                  '<a href="/NatLee">x</a> `cv2.imread(\'./docs/images/test.png\')`')
         self.assertEqual(absolute_links(readme, 'v9.9.9'), readme)
 
     def test_the_long_description_links_to_the_tag_of_this_version(self):
         version = SETUP['VERSION']
         description = SETUP['LONG_DESCRIPTION']
-        self.assertIn('raw.githubusercontent.com/NatLee/blur-generator/v{}/doc/readme/sample.jpg'.format(version),
+        self.assertIn('raw.githubusercontent.com/NatLee/blur-generator/v{}/docs/images/readme/sample.jpg'.format(version),
                       description)
         self.assertEqual(absolute_links(description, 'v' + version), description)
 

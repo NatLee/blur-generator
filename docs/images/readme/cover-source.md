@@ -16,7 +16,7 @@ lens and Gaussian examples. These are existing outputs, not newly run examples:
 The SVG embeds the original JPEG bytes and scales each image without cropping.
 Typography and layout are separate vector elements. All four source files remain
 unchanged. Their generation commands are documented in the README and
-[make_readme_images.py](../../scripts/make_readme_images.py).
+[make_readme_images.py](../../../scripts/make_readme_images.py).
 
 The subtitle mentions depth-aware focus, which is supported by the library;
 the four panels show the basic blur types, not depth-map results.
